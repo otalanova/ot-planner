@@ -2,84 +2,87 @@
 
 A minimal, file-based task and project planner with an AI chat assistant. No database — everything is stored in a single markdown file.
 
-Works on **macOS**, **Linux**, and **Windows**.
+Developed on macOS. Windows and Linux testing is ongoing — if you run into issues, please [open an issue](https://github.com/otalanova/ot-planner/issues).
 
 ## Features
 
 - **Four-column layout** — Chat | Do Now | Do Later | My Projects
-- **AI chat** — tell the AI what to add, move, or rearrange in plain language (powered by Gemini)
-- **Project colors** — tasks are color-coded by project with colored side bars
-- **Drag & drop** — reorder tasks or move them across columns
-- **Filter by project** — click a project chip to filter; quick-add while filtered auto-tags the task
-- **Inline editing** — click project titles and notes to edit in place
+- **AI chat** — add, move, or rearrange tasks in plain language (powered by Gemini, requires API key)
+- **Project colors** — tasks are color-coded by project via colored side bars
+- **Drag & drop** — reorder tasks or move them between columns
+- **Filter by project** — click a project chip to filter; quick-add auto-tags with the active project
+- **Inline editing** — click task titles, project names, and notes to edit in place
 - **Markdown storage** — all data lives in `data/tasks.md`, human-readable and version-controllable
-- **Daily backups** — automatic daily snapshots before any change
+- **Daily backups** — automatic snapshot before the first change of each day
 - **Profiles** — switch between Personal and Demo task lists from the header
-- **Voice input** — dictate messages using your browser's built-in speech recognition (Chrome/Edge). Optional local Whisper transcription is also supported (see below)
+- **Voice input** — dictate via browser speech recognition (Chrome/Edge), or optional local Whisper (see [Voice input](#voice-input))
 
 ## Quick start
 
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) v18 or newer
+
 ### Windows note
 
-Windows may show security prompts during setup — this is normal. If the Node.js installer asks for permission to make changes, click **Yes**. If PowerShell shows an execution policy warning, follow the prompt to allow it. If `npm install` or `npm start` fails with a permissions error, try running PowerShell as Administrator (right-click → **Run as administrator**). You may also see a Windows Firewall popup when the server starts — click **Allow access** to let it run on localhost.
+Windows may show security prompts during setup — this is normal. Click **Yes** when the installer asks for permission, and **Allow access** if a firewall popup appears when the server starts. If `npm install` or `npm start` fails with a permissions error, try running PowerShell as Administrator (right-click → **Run as administrator**).
 
 ### Step 1 — Install Node.js
 
 Download from [https://nodejs.org](https://nodejs.org/) — pick the **LTS** version, run the installer, accept all defaults.
 
-To verify it installed, open **PowerShell** (Windows) or **Terminal** (Mac/Linux) and run:
+Verify it worked — open **PowerShell** (Windows) or **Terminal** (Mac/Linux):
 
 ```
 node --version
 ```
 
-You should see something like `v20.x.x`. If you get "not recognized", restart your terminal after installing.
+You should see something like `v20.x.x`. If you get "not recognized", restart your terminal.
 
 ### Step 2 — Download OT Planner
 
-**Option A — with git:**
-
+**With git:**
 ```powershell
 git clone https://github.com/otalanova/ot-planner.git
 ```
 
-**Option B — without git:**
+**Without git:** go to the [repository page](https://github.com/otalanova/ot-planner), click the green **Code** button → **Download ZIP**, and extract the folder.
 
-Go to [https://github.com/otalanova/ot-planner](https://github.com/otalanova/ot-planner), click the green **Code** button, click **Download ZIP**, and extract the folder.
+### Step 3 — Install and run
 
-### Step 3 — Install dependencies
-
-Open **PowerShell** (Windows) or **Terminal** (Mac/Linux), navigate to the folder, and install:
+Open a terminal in the `ot-planner` folder and run:
 
 ```powershell
 cd ot-planner
 npm install
+npm start
 ```
 
-> **Windows tip:** You can also open the `ot-planner` folder in File Explorer, right-click an empty area, and select **"Open in Terminal"** — this opens PowerShell already in the right folder.
+Open [http://localhost:3001](http://localhost:3001) in your browser. To stop the server, press `Ctrl+C`.
 
-### Step 4 — Add your Gemini API key (optional)
+> **Windows tip:** Open the folder in File Explorer, right-click an empty area → **"Open in Terminal"** to get PowerShell in the right directory.
 
-The AI chat feature requires a free Gemini API key. Everything else works without it.
+### Step 4 — Add a Gemini API key (optional)
+
+The AI chat requires a Gemini API key. The key itself is free, but API usage is billed by Google — see [Gemini pricing](https://ai.google.dev/pricing). The token count and estimated cost are shown under each AI reply. Everything else (tasks, drag & drop, projects, filtering) works without a key.
 
 **Get a key:**
 
 1. Go to [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 2. Sign in with your Google account
-3. Click **"Create API key"**
-4. Copy the key (looks like `AIzaSy...`)
+3. Click **"Create API key"** and copy it
 
-**Create the `.env` file:**
+**Set the key** (pick one method):
 
-In the `ot-planner` folder, create a file called `.env` with this content:
+**Option A — `.env` file (recommended, persists across restarts):**
+
+Create a file called `.env` in the `ot-planner` folder with one line:
 
 ```
 GEMINI_API_KEY=paste-your-key-here
 ```
 
-Replace `paste-your-key-here` with the key you copied.
-
-**Option A — create a `.env` file (recommended, persists across restarts):**
+From the terminal:
 
 Windows PowerShell:
 ```powershell
@@ -91,9 +94,9 @@ Mac/Linux:
 echo "GEMINI_API_KEY=paste-your-key-here" > .env
 ```
 
-Or use **Notepad** / any text editor: create a new file, type the line, **Save As** → set filename to `.env` and set "Save as type" to **All Files** (not .txt).
+Or use any text editor — save the file as `.env` (on Windows: set "Save as type" to **All Files**, not .txt).
 
-**Option B — set it as an environment variable (works for the current session only):**
+**Option B — environment variable (current session only):**
 
 Windows PowerShell:
 ```powershell
@@ -105,17 +108,7 @@ Mac/Linux:
 export GEMINI_API_KEY=paste-your-key-here
 ```
 
-Then run `npm start` in the same terminal window.
-
-### Step 5 — Run
-
-```powershell
-npm start
-```
-
-Open [http://localhost:3001](http://localhost:3001) in your browser.
-
-To stop the server, press `Ctrl+C` in the terminal.
+Then run `npm start` in the same terminal.
 
 ## How it works
 
@@ -124,8 +117,8 @@ All tasks are stored in `data/tasks.md` as plain markdown:
 ```markdown
 ## Do Now
 
-- [ ] **Fix login bug**
-  - Tags: #myproject
+- [ ] **Book theory exam**
+  - Tags: #my-project
 
 ## Do Later
 
@@ -133,38 +126,37 @@ All tasks are stored in `data/tasks.md` as plain markdown:
 
 ## My Projects
 
-- [ ] **MyProject**
+- [ ] **My Project**
   - Color: #2dd4bf
+  - Tags: #my-project
 
 ## Done
 ```
 
-Edit the file directly or use the web UI — they stay in sync. Backups are saved as `data/YYYYMMDD_tasks.md` (one per day, created before the first change of the day).
+Edit the file directly or use the web UI — they stay in sync.
 
 ## What gets sent to Gemini
 
 When you use the AI chat, each message sends the following to the Gemini API:
 
-1. **System prompt** — instructions explaining the task data structure, color system, and how to respond (~200 tokens)
-2. **Chat history** — the last 10 messages from the conversation (text only)
-3. **Your full task state** — all tasks, projects, and done items as JSON, plus a project summary
-4. **Your message** — what you typed
+1. **System prompt** — instructions explaining the data structure and how to respond (~200 tokens)
+2. **Chat history** — the last 10 messages (text only)
+3. **Your full task state** — all tasks, projects, and done items as JSON
+4. **Your message**
 
-Everything runs through your own API key directly to Google's Gemini API. No data is sent to any other server. The token count is shown under each AI reply so you can see exactly how much context is being used.
-
-Without an API key, the chat is disabled but all other features (adding tasks, drag & drop, projects, filtering) work fully offline.
+All requests go directly from your server to the Gemini API using your own key. No data is sent to any third party. The token count and cost estimate are shown under each reply.
 
 ## Voice input
 
-Voice input works out of the box in **Chrome** and **Edge** using the browser's built-in speech recognition — just click the microphone button in the chat area.
+Voice input works out of the box in **Chrome** and **Edge** using the browser's built-in speech recognition — click the microphone button in the chat area.
 
-For higher-quality offline transcription, you can optionally set up local [Whisper](https://github.com/ggerganov/whisper.cpp):
+For offline transcription, you can optionally set up local [Whisper](https://github.com/ggerganov/whisper.cpp):
 
 1. Install `whisper-cli` (e.g. `brew install whisper-cpp` on macOS)
-2. Download a Whisper model (e.g. `ggml-base.bin`, ~150 MB) and place it in a `models/` folder inside the project directory
-3. Restart the server — the Whisper/Browser toggle will appear automatically
+2. Download a model file (e.g. `ggml-base.bin`, ~150 MB) into a `models/` folder in the project directory
+3. Restart the server — a Whisper/Browser toggle will appear
 
-This is entirely optional. Without Whisper, browser voice works fine.
+This is entirely optional.
 
 ## Project structure
 
