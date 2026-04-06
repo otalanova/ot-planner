@@ -1,0 +1,8 @@
+.env
+node_modules
+models/
+data/tasks.md
+data/tasks.personal.md
+data/tasks.backup.md
+data/*.json
+data/*_tasks.md

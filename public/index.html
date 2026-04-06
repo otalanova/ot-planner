@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OT Planner</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      --bg: #0f1923;
+      --surface: #162230;
+      --surface-2: #1c2d3f;
+      --surface-3: #243547;
+      --border: #2a3f55;
+      --border-light: #34506a;
+      --text: #e8edf2;
+      --text-muted: #7b8fa3;
+      --text-dim: #4e6478;
+      --accent: #2dd4bf;
+      --accent-glow: rgba(45, 212, 191, 0.15);
+      --accent-dim: #1a8a7a;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --done: #34d399;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 56px;
+    }
+
+    header h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; color: var(--accent); }
+    .header-right { display: flex; gap: 14px; align-items: center; }
+
+    .summary {
+      font-size: 12px; color: var(--text-muted);
+      background: var(--surface-2); padding: 5px 12px;
+      border-radius: 20px; border: 1px solid var(--border);
+    }
+
+    .profile-select {
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      background: var(--surface-2); color: var(--accent);
+      border: 1px solid var(--border); border-radius: 20px;
+      padding: 5px 12px; cursor: pointer; outline: none;
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237b8fa3'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 26px;
+    }
+    .profile-select:hover { border-color: var(--accent); }
+    .profile-select option { background: var(--surface-2); color: var(--text); }
+
+    .save-indicator {
+      font-size: 11px; color: var(--done); font-weight: 500;
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .save-indicator.show { opacity: 1; }
+
+    .columns { display: flex; height: calc(100vh - 56px); }
+
+    .col {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; min-width: 0;
+    }
+    .col + .col { border-left: 1px solid var(--border); }
+
+    .col-header {
+      padding: 14px 16px; font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--text-muted); background: var(--surface);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .col-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .col-dot.now { background: var(--danger); box-shadow: 0 0 8px rgba(239,68,68,0.4); }
+    .col-dot.later { background: var(--warn); box-shadow: 0 0 8px rgba(245,158,11,0.3); }
+    .col-dot.projects { background: var(--accent); box-shadow: 0 0 8px rgba(45,212,191,0.3); }
+
+    .col-body { flex: 1; overflow-y: auto; }
+    .col-body::-webkit-scrollbar { width: 6px; }
+    .col-body::-webkit-scrollbar-track { background: transparent; }
+    .col-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* === CHAT COLUMN === */
+    .col-input { background: var(--surface); }
+    .col-input .col-body { padding: 0; display: flex; flex-direction: column; }
+    .col-input .col-header { color: var(--accent); }
+
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .chat-messages::-webkit-scrollbar { width: 6px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .chat-msg {
+      max-width: 90%; padding: 8px 12px; border-radius: 12px;
+      font-size: 13px; line-height: 1.4; word-wrap: break-word;
+    }
+    .chat-msg.user {
+      align-self: flex-end; background: color-mix(in srgb, var(--accent) 20%, transparent);
+      color: var(--text); border-bottom-right-radius: 4px;
+    }
+    .chat-msg.ai {
+      align-self: flex-start; background: var(--surface-2);
+      color: var(--text); border-bottom-left-radius: 4px;
+    }
+    .chat-msg.ai.error { color: var(--danger); }
+    .chat-msg.ai .typing { opacity: 0.5; }
+    .chat-input-area {
+      display: flex; gap: 6px; padding: 10px 12px;
+      border-top: 1px solid var(--border);
+      align-items: flex-end;
+    }
+    .chat-input-area .btn { height: 34px; align-self: flex-end; }
+    .chat-input-area textarea {
+      flex: 1; font-family: inherit; font-size: 13px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 8px 12px; outline: none; resize: none;
+      background: var(--surface-2); color: var(--text);
+      line-height: 1.4;
+    }
+    .chat-input-area textarea:focus { border-color: var(--accent); }
+    .chat-input-area textarea::placeholder { color: var(--text-dim); }
+    .mic-btn {
+      height: 34px; width: 34px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border); background: var(--surface-2);
+      color: var(--text-dim); cursor: pointer; font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: all 0.15s;
+    }
+    .mic-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .mic-btn.recording {
+      border-color: var(--danger); color: white;
+      background: var(--danger);
+      animation: mic-pulse 1s infinite;
+    }
+    @keyframes mic-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+      50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+    }
+    .recording-label {
+      font-size: 11px; color: var(--danger); text-align: center;
+      padding: 4px 0 0; animation: rec-blink 1s infinite;
+    }
+    @keyframes rec-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .voice-toggle { display: flex; gap: 2px; padding: 0 12px 6px; justify-content: flex-end; }
+    .voice-mode-btn {
+      font-family: inherit; font-size: 10px; padding: 2px 8px;
+      border: 1px solid var(--border); border-radius: 10px;
+      background: transparent; color: var(--text-dim); cursor: pointer;
+    }
+    .voice-mode-btn.active {
+      background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600;
+    }
+
+    .tag-chips {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: 12px;
+    }
+    .tag-chip {
+      font-family: inherit; font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 20px;
+      cursor: pointer; transition: all 0.15s;
+      border: 1px solid color-mix(in srgb, var(--chip-color) 40%, transparent);
+      background: transparent;
+      color: var(--chip-color);
+    }
+    .tag-chip:hover {
+      background: color-mix(in srgb, var(--chip-color) 15%, transparent);
+    }
+    .tag-chip.active {
+      background: color-mix(in srgb, var(--chip-color) 45%, transparent);
+      border-color: var(--chip-color);
+      color: white;
+      font-weight: 700;
+      box-shadow: 0 0 12px color-mix(in srgb, var(--chip-color) 40%, transparent), inset 0 0 8px color-mix(in srgb, var(--chip-color) 15%, transparent);
+    }
+
+    .btn {
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      border: none; border-radius: var(--radius-sm); padding: 9px 18px;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: var(--bg); }
+    .btn-primary:hover { background: #5eead4; box-shadow: 0 0 16px var(--accent-glow); }
+
+    /* === TASK COLUMNS === */
+    .col-tasks { background: var(--bg); }
+
+    .col-quick-add {
+      display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 10px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .col-quick-add .qa-row {
+      display: flex; gap: 6px; width: 100%;
+    }
+    .col-quick-add .tag-chips {
+      margin-bottom: 0; width: 100%;
+    }
+    .col-quick-add input {
+      flex: 1; font-family: inherit; font-size: 13px;
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      padding: 8px 12px; outline: none;
+      background: var(--surface-2); color: var(--text);
+    }
+    .col-quick-add input:focus { border-color: var(--accent); }
+    .col-quick-add input::placeholder { color: var(--text-dim); }
+    .col-quick-add .btn { padding: 8px 14px; }
+
+    /* Tasks list */
+    .task-list {
+      padding: 4px 2px;
+      min-height: 40px;
+    }
+
+    .task {
+      padding: 8px 10px 8px 12px; display: flex; align-items: stretch;
+      gap: 0; transition: all 0.2s ease;
+      cursor: grab; position: relative;
+      margin: 2px 8px; border-radius: var(--radius-sm);
+      background: var(--surface);
+      border: 1px solid transparent;
+      overflow: hidden;
+    }
+    .task:hover {
+      background: var(--surface-2);
+      border-color: var(--border);
+    }
+    .task:active { cursor: grabbing; }
+
+    .drag-ghost {
+      position: fixed; z-index: 9999; pointer-events: none;
+      background: var(--surface-2); border: 1px solid var(--accent);
+      border-radius: 8px; opacity: 0.92;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.5), 0 0 0 1px var(--accent);
+      transform: rotate(1.5deg);
+    }
+    .task.dragging {
+      opacity: 0.25;
+      transform: scale(0.97);
+      box-shadow: none;
+    }
+
+    .task.drag-over-top::before {
+      content: '';
+      position: absolute; top: -3px; left: 0; right: 0;
+      height: 3px; background: var(--accent);
+      border-radius: 2px;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+    .task.drag-over-bottom::after {
+      content: '';
+      position: absolute; bottom: -3px; left: 0; right: 0;
+      height: 3px; background: var(--accent);
+      border-radius: 2px;
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .task-color-bar {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 5px; border-radius: 4px 0 0 4px;
+      pointer-events: none;
+    }
+    .task-actions { position: relative; display: flex; align-items: center; gap: 2px; }
+    .task-tag-btn {
+      width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--border);
+      cursor: pointer; padding: 0; flex-shrink: 0;
+    }
+    .task-tag-btn:hover { border-color: var(--text); }
+    .task-tag-dropdown {
+      display: none; position: absolute; top: 100%; right: 0; z-index: 100;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 6px; gap: 4px; flex-wrap: wrap; width: 120px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      pointer-events: none;
+    }
+    .task-tag-dropdown.open { display: flex; pointer-events: auto; }
+    .task-tag-opt {
+      width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent;
+      cursor: pointer; padding: 0; transition: border-color 0.15s;
+    }
+    .task-tag-opt:hover { border-color: white; }
+    .task-tag-opt.active { border-color: white; box-shadow: 0 0 6px rgba(255,255,255,0.3); }
+    .task-tag-none {
+      width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border);
+      cursor: pointer; padding: 0; background: transparent; position: relative;
+    }
+    .task-tag-none::after {
+      content: '×'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      font-size: 12px; color: var(--text-dim);
+    }
+
+    .task-inner {
+      flex: 1; display: flex; align-items: flex-start; gap: 8px;
+      min-width: 0; padding: 0 4px;
+    }
+
+    .drag-handle {
+      color: var(--text-dim); font-size: 12px;
+      margin-top: 2px; cursor: grab; flex-shrink: 0;
+      opacity: 0; transition: opacity 0.15s;
+      user-select: none;
+    }
+    .task:hover .drag-handle { opacity: 0.6; }
+    .task:hover .drag-handle:hover { opacity: 1; }
+
+    .task input[type="checkbox"] {
+      margin-top: 3px; width: 16px; height: 16px;
+      accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+    }
+
+    .task-content { flex: 1; min-width: 0; }
+    .task-title { font-size: 13px; font-weight: 500; color: var(--text); cursor: text; }
+    .task-title:hover { border-bottom: 1px dashed var(--text-dim); }
+    .task.is-done .task-title { text-decoration: line-through; color: var(--text-dim); }
+
+    .task-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+    .task-meta span { font-size: 11px; color: var(--text-dim); }
+    .task-meta .deadline-warn { color: var(--danger); font-weight: 600; }
+
+    .task-steps { margin-top: 6px; padding-left: 2px; }
+    .task-steps .progress-label {
+      font-size: 10px; color: var(--text-dim); font-weight: 500; margin-bottom: 2px;
+    }
+
+    .step {
+      display: flex; align-items: center; gap: 6px;
+      padding: 2px 0; font-size: 12px; color: var(--text-muted);
+    }
+    .step input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); }
+    .step.is-done span { text-decoration: line-through; color: var(--text-dim); }
+
+    .task-actions {
+      display: flex; gap: 4px; opacity: 0;
+      transition: opacity 0.15s; flex-shrink: 0; margin-top: 2px;
+    }
+    .task:hover .task-actions { opacity: 1; }
+
+    .task-actions button {
+      padding: 3px 8px; font-size: 11px; border: none;
+      background: var(--surface-3); border-radius: 5px;
+      cursor: pointer; color: var(--text-muted); transition: all 0.15s;
+    }
+    .task-actions button:hover { background: var(--border-light); color: var(--text); }
+
+    .empty-state { padding: 14px; text-align: center; font-size: 12px; color: var(--text-dim); }
+
+    /* Section headers inside columns (for ideas/done) */
+    .section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); margin: 10px 10px; overflow: hidden;
+    }
+    .section:hover { border-color: var(--border-light); }
+
+    .section-header {
+      padding: 10px 14px; display: flex; align-items: center;
+      justify-content: space-between; cursor: pointer; user-select: none;
+    }
+    .section-header:hover { background: var(--surface-2); }
+    .section-header h2 {
+      font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px;
+    }
+    .section-header .count {
+      font-size: 10px; font-weight: 600; color: var(--text-dim);
+      background: var(--surface-3); padding: 2px 8px; border-radius: 10px;
+    }
+    .section-body { border-top: 1px solid var(--border); padding: 4px 0; }
+
+    .toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: var(--bg); padding: 10px 24px;
+      border-radius: var(--radius); font-size: 13px; font-weight: 600;
+      z-index: 300; opacity: 0; transition: opacity 0.3s;
+      box-shadow: 0 4px 20px rgba(45,212,191,0.3);
+    }
+    .toast.show { opacity: 1; }
+
+    /* Done button in header */
+    .btn-done {
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      background: var(--surface-2); color: var(--done);
+      border: 1px solid rgba(52,211,153,0.3); border-radius: 20px;
+      padding: 5px 14px; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-done:hover { background: rgba(52,211,153,0.1); border-color: var(--done); }
+
+    /* Done drawer */
+    .drawer-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 400; opacity: 0; pointer-events: none;
+      transition: opacity 0.25s;
+    }
+    .drawer-overlay.open { opacity: 1; pointer-events: all; }
+
+    .drawer {
+      position: fixed; top: 0; right: -420px; bottom: 0;
+      width: 400px; max-width: 90vw;
+      background: var(--surface); border-left: 1px solid var(--border);
+      z-index: 401; transition: right 0.25s ease;
+      display: flex; flex-direction: column;
+      box-shadow: -8px 0 32px rgba(0,0,0,0.3);
+    }
+    .drawer-overlay.open .drawer { right: 0; }
+
+    .drawer-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .drawer-header h2 { font-size: 15px; font-weight: 700; color: var(--done); }
+    .drawer-close {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 20px; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+    }
+    .drawer-close:hover { background: var(--surface-2); color: var(--text); }
+
+    .drawer-body {
+      flex: 1; overflow-y: auto; padding: 8px 0;
+    }
+
+    .done-task {
+      padding: 8px 20px; display: flex; align-items: flex-start; gap: 8px;
+      transition: background 0.15s;
+    }
+    .done-task:hover { background: var(--surface-2); }
+
+    .done-task .task-title {
+      font-size: 13px; color: var(--text-dim);
+      text-decoration: line-through;
+    }
+    .done-task .done-date {
+      font-size: 11px; color: var(--text-dim); margin-top: 2px;
+    }
+    .done-task .undo-btn {
+      background: none; border: none; color: var(--accent);
+      font-size: 11px; cursor: pointer; padding: 2px 6px;
+      border-radius: 4px; flex-shrink: 0; margin-top: 1px;
+      opacity: 0; transition: opacity 0.15s;
+    }
+    .done-task:hover .undo-btn { opacity: 1; }
+    .done-task .undo-btn:hover { background: var(--accent-glow); }
+
+    .project-header-actions {
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    .project-color-btn {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid var(--border); cursor: pointer;
+      opacity: 0; transition: all 0.15s; padding: 0;
+    }
+    .section-header:hover .project-color-btn { opacity: 1; }
+    .project-color-btn:hover { border-color: var(--text); transform: scale(1.15); }
+
+    .color-picker-dropdown {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding: 10px 14px; border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+
+    .color-swatch {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 2px solid transparent; cursor: pointer;
+      padding: 0; transition: all 0.15s;
+    }
+    .color-swatch:hover { transform: scale(1.2); border-color: var(--text); }
+    .color-swatch.active { border-color: white; box-shadow: 0 0 8px rgba(255,255,255,0.3); }
+
+    .proj-editable { cursor: text; border-bottom: 1px dashed transparent; }
+    .proj-editable:hover { border-bottom-color: var(--text-dim); }
+    .proj-edit-input {
+      font-family: inherit; background: var(--surface-2); color: var(--text);
+      border: 1px solid var(--accent); border-radius: var(--radius-sm);
+      padding: 2px 6px; outline: none;
+    }
+    .proj-edit-input.edit-title { font-size: 13px; font-weight: 700; }
+    .proj-edit-input.edit-notes { font-size: 11px; font-weight: 400; }
+
+    .project-card { cursor: grab; transition: border-color 0.15s, opacity 0.15s; }
+    .project-card:active { cursor: grabbing; }
+    .project-card.dragging { opacity: 0.4; }
+    .project-card.drag-over-top { border-top: 2px solid var(--accent); }
+    .project-card.drag-over-bottom { border-bottom: 2px solid var(--accent); }
+
+    .project-delete {
+      background: none; border: none; color: var(--text-dim);
+      font-size: 14px; cursor: pointer; padding: 2px 6px;
+      border-radius: 4px; opacity: 0; transition: all 0.15s;
+    }
+    .section-header:hover .project-delete { opacity: 1; }
+    .project-delete:hover { color: var(--danger); background: rgba(239,68,68,0.1); }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="display:flex;align-items:center;gap:14px">
+      <h1>OT Planner</h1>
+      <select class="profile-select" id="profileSelect" onchange="switchProfile(this.value)"></select>
+    </div>
+    <div class="header-right">
+      <span class="summary" id="summary"></span>
+      <button class="btn-done" onclick="openDoneDrawer()">Done <span id="doneCount">0</span></button>
+      <span class="save-indicator" id="saveIndicator">Saved</span>
+    </div>
+  </header>
+
+  <div class="columns">
+    <div class="col col-input">
+      <div class="col-header" style="display:flex;justify-content:space-between;align-items:center">
+        Chat <span style="font-weight:400;font-size:10px;color:var(--text-dim);margin-left:4px">(<select id="modelSelect" onchange="setModel(this.value)" style="font-family:inherit;font-size:10px;background:transparent;color:var(--text-dim);border:none;cursor:pointer;outline:none"><option value="gemini-2.5-flash">Gemini 2.5 Flash</option><option value="gemini-2.5-pro">Gemini 2.5 Pro</option></select>)</span>
+        <button onclick="clearChat()" style="background:none;border:none;color:var(--text-dim);font-size:11px;cursor:pointer">Clear</button>
+      </div>
+      <div class="col-body" id="inputPanel">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input-area">
+          <textarea id="chatInput" rows="5" placeholder="Add task, rearrange, ask..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+          <button class="mic-btn" id="micBtn" onclick="toggleVoice()" title="Voice input">🎤</button>
+          <button class="btn btn-primary" onclick="sendChat()">→</button>
+        </div>
+        <div class="voice-toggle" id="voiceToggle"></div>
+      </div>
+    </div>
+    <div class="col col-tasks">
+      <div class="col-header"><span class="col-dot now"></span> Do now</div>
+      <div class="col-body" id="colNow"></div>
+    </div>
+    <div class="col col-tasks">
+      <div class="col-header"><span class="col-dot later"></span> Do later</div>
+      <div class="col-body" id="colLater"></div>
+    </div>
+    <div class="col col-tasks">
+      <div class="col-header"><span class="col-dot projects"></span> My projects</div>
+      <div class="col-body" id="colProjects"></div>
+    </div>
+  </div>
+
+  <div class="drawer-overlay" id="drawerOverlay" onclick="closeDoneDrawer(event)">
+    <div class="drawer">
+      <div class="drawer-header">
+        <h2>Completed</h2>
+        <button class="drawer-close" onclick="closeDoneDrawer()">&times;</button>
+      </div>
+      <div class="drawer-body" id="doneList"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let data = {};
+    let dragState = null; // { section, index }
+
+    // ---- PROJECT COLORS ----
+    const DEFAULT_COLORS = [
+      '#2dd4bf', '#f472b6', '#818cf8', '#fb923c', '#a3e635',
+      '#38bdf8', '#e879f9', '#fbbf24', '#34d399', '#f87171',
+    ];
+
+    const COLOR_PALETTE = [
+      '#2dd4bf', '#34d399', '#a3e635', '#fbbf24', '#fb923c',
+      '#f87171', '#f472b6', '#e879f9', '#818cf8', '#38bdf8',
+      '#94a3b8', '#ffffff',
+    ];
+
+    function getProjectColor(proj, index) {
+      return proj.fields?.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length];
+    }
+
+    function getProjectColorMap() {
+      const map = {};
+      const projects = data.projects || [];
+      projects.forEach((p, i) => {
+        const color = getProjectColor(p, i);
+        const entry = { color, name: p.title };
+        const name = p.title.toLowerCase().replace(/\s+/g, '');
+        const hyphen = p.title.toLowerCase().replace(/\s+/g, '-');
+        map[name] = entry;
+        map[hyphen] = entry;
+        p.title.toLowerCase().split(/\s+/).forEach(word => {
+          if (word.length > 2) map[word] = entry;
+        });
+        if (p.fields?.tags) {
+          p.fields.tags.split(/\s+/).forEach(tag => {
+            map[tag.toLowerCase().replace('#', '')] = entry;
+          });
+        }
+      });
+      return map;
+    }
+
+    let _colorMapCache = null;
+
+    function getTaskColors(tags) {
+      if (!tags) return [];
+      const colorMap = _colorMapCache || getProjectColorMap();
+      const seen = new Set();
+      const colors = [];
+      const tagList = tags.split(/\s+/);
+      for (const tag of tagList) {
+        const key = tag.toLowerCase().replace('#', '');
+        const match = colorMap[key];
+        if (match && !seen.has(match.name)) {
+          seen.add(match.name);
+          colors.push({ color: match.color, name: match.name });
+        }
+      }
+      return colors;
+    }
+
+    function toggleColorPicker(e, index) {
+      e.stopPropagation();
+      const picker = document.getElementById(`colorPicker-${index}`);
+      picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+    }
+
+    async function pickColor(index, color) {
+      data.projects[index].fields = data.projects[index].fields || {};
+      data.projects[index].fields.color = color;
+      await save();
+      renderAll();
+    }
+
+    function toggleTaskTags(e, section, index) {
+      e.stopPropagation();
+      const dd = document.getElementById(`taskTags-${section}-${index}`);
+      // Close all other dropdowns first
+      document.querySelectorAll('.task-tag-dropdown.open').forEach(el => {
+        if (el !== dd) el.classList.remove('open');
+      });
+      dd.classList.toggle('open');
+    }
+
+    async function setTaskProject(section, index, tag) {
+      const task = data[section][index];
+      task.fields = task.fields || {};
+      task.fields.tags = tag || '';
+      document.querySelectorAll('.task-tag-dropdown.open').forEach(el => el.classList.remove('open'));
+      await save();
+      renderAll();
+    }
+
+    function editTaskTitle(section, index, div) {
+      const task = data[section][index];
+      const current = task.title;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'proj-edit-input edit-title';
+      input.value = current;
+      input.style.width = '100%';
+      div.replaceWith(input);
+      input.focus();
+      input.select();
+
+      const commit = async () => {
+        const val = input.value.trim();
+        if (val) task.title = val;
+        await save();
+        renderAll();
+      };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') { input.value = current; input.blur(); }
+      });
+    }
+
+    function editProjectField(index, field, span) {
+      const proj = data.projects[index];
+      const isTitle = field === 'title';
+      const current = isTitle ? proj.title : (proj.fields?.notes || '');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = `proj-edit-input ${isTitle ? 'edit-title' : 'edit-notes'}`;
+      input.value = current;
+      input.placeholder = isTitle ? 'Project name' : 'Add a note...';
+      span.replaceWith(input);
+      input.focus();
+      input.select();
+
+      const commit = async () => {
+        const val = input.value.trim();
+        if (isTitle) {
+          if (val) proj.title = val;
+        } else {
+          proj.fields = proj.fields || {};
+          proj.fields.notes = val;
+        }
+        await save();
+        renderAll();
+      };
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') { input.value = current; input.blur(); }
+      });
+    }
+
+    async function load() {
+      const res = await fetch('/api/tasks');
+      data = await res.json();
+      renderAll();
+    }
+
+    async function loadProfiles() {
+      try {
+        const res = await fetch('/api/profile');
+        const { active, profiles } = await res.json();
+        const select = document.getElementById('profileSelect');
+        const labels = { personal: 'Personal', demo: 'Demo' };
+        select.innerHTML = profiles.map(p =>
+          `<option value="${p}" ${p === active ? 'selected' : ''}>${labels[p] || p}</option>`
+        ).join('');
+      } catch {}
+    }
+
+    async function switchProfile(name) {
+      try {
+        const res = await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        if (!res.ok) throw new Error('Switch failed');
+        await load();
+        await clearChat();
+        showToast(`Switched to ${name}`);
+      } catch (err) {
+        showToast(err.message);
+      }
+    }
+
+    let saveQueued = false;
+    let saving = false;
+
+    async function save() {
+      if (saving) { saveQueued = true; return; }
+      saving = true;
+      try {
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) throw new Error(`Save failed (${res.status})`);
+        flashSave();
+      } catch (err) {
+        showToast(err.message || 'Save failed');
+      } finally {
+        saving = false;
+        if (saveQueued) { saveQueued = false; save(); }
+      }
+    }
+
+    function flashSave() {
+      const el = document.getElementById('saveIndicator');
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 1500);
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2000);
+    }
+
+    function updateSummary() {
+      const now = (data.now || []).length;
+      const later = (data.later || []).length;
+      const proj = (data.projects || []).length;
+      const done = (data.done || []).length;
+      document.getElementById('summary').textContent =
+        `Now: ${now}   Later: ${later}   Projects: ${proj}`;
+      document.getElementById('doneCount').textContent = done;
+    }
+
+    function deadlineStatus(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      const now = new Date();
+      const diff = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+      if (diff < 0) return { label: 'Overdue', cls: 'deadline-warn' };
+      if (diff <= 7) return { label: `${diff}d left`, cls: 'deadline-warn' };
+      return { label: dateStr, cls: '' };
+    }
+
+    function renderAll() {
+      _colorMapCache = getProjectColorMap();
+      updateSummary();
+      renderTaskColumn('colNow', 'now');
+      renderTaskColumn('colLater', 'later');
+      renderProjectsColumn();
+      _colorMapCache = null;
+    }
+
+    // ---- CHAT ----
+    let chatHistory = [];
+    let chatModel = localStorage.getItem('chatModel') || 'gemini-2.5-flash';
+
+    function setModel(model) {
+      chatModel = model;
+      localStorage.setItem('chatModel', model);
+    }
+
+    function initModelSelect() {
+      const select = document.getElementById('modelSelect');
+      if (select) select.value = chatModel;
+    }
+
+    function appendChatMsg(role, text) {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = `chat-msg ${role}`;
+      div.textContent = text;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return div;
+    }
+
+    async function loadChatHistory() {
+      try {
+        const res = await fetch('/api/chat/history');
+        const messages = await res.json();
+        chatHistory = messages.map(m => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          text: m.text,
+        }));
+        const container = document.getElementById('chatMessages');
+        container.innerHTML = '';
+        for (const m of messages) {
+          appendChatMsg(m.role === 'user' ? 'user' : 'ai', m.text);
+        }
+      } catch {}
+    }
+
+    async function clearChat() {
+      chatHistory = [];
+      document.getElementById('chatMessages').innerHTML = '';
+      await fetch('/api/chat/history', { method: 'DELETE' });
+    }
+
+    // ---- VOICE INPUT ----
+    let recognition = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+    let whisperAvailable = false;
+
+    // Voice mode: 'browser' or 'whisper'
+    let voiceMode = localStorage.getItem('voiceMode') || 'browser';
+
+    async function checkWhisper() {
+      try {
+        const res = await fetch('/api/whisper/status');
+        const data = await res.json();
+        whisperAvailable = data.available;
+        if (whisperAvailable && voiceMode === 'browser') {
+          voiceMode = 'whisper'; // default to whisper if available
+          localStorage.setItem('voiceMode', voiceMode);
+        }
+      } catch {}
+    }
+
+    function setVoiceMode(mode) {
+      voiceMode = mode;
+      localStorage.setItem('voiceMode', mode);
+      renderVoiceToggle();
+    }
+
+    function renderVoiceToggle() {
+      const el = document.getElementById('voiceToggle');
+      if (!el) return;
+      if (!whisperAvailable) {
+        el.innerHTML = '<span style="font-size:10px;color:var(--text-dim)">Browser voice</span>';
+        return;
+      }
+      el.innerHTML = `
+        <button class="voice-mode-btn ${voiceMode === 'whisper' ? 'active' : ''}" onclick="setVoiceMode('whisper')">Whisper</button>
+        <button class="voice-mode-btn ${voiceMode === 'browser' ? 'active' : ''}" onclick="setVoiceMode('browser')">Browser</button>
+      `;
+    }
+
+    function toggleVoice() {
+      if (isRecording) {
+        stopVoice();
+        return;
+      }
+      if (voiceMode === 'whisper') {
+        startWhisperRecording();
+      } else {
+        startBrowserRecording();
+      }
+    }
+
+    function startBrowserRecording() {
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        appendChatMsg('ai', 'Voice input not supported in this browser. Use Chrome or Edge.');
+        return;
+      }
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || 'en-US';
+
+      const textarea = document.getElementById('chatInput');
+      const existingText = textarea.value;
+      let finalTranscript = '';
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const t = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += t;
+          } else {
+            interim += t;
+          }
+        }
+        textarea.value = existingText + finalTranscript + interim;
+      };
+      recognition.onerror = (event) => {
+        if (event.error !== 'aborted') appendChatMsg('ai', `Mic error: ${event.error}`);
+        stopVoice();
+      };
+      recognition.onend = () => stopVoice();
+      recognition.start();
+      showRecordingUI();
+    }
+
+    async function startWhisperRecording() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop());
+          // Convert to WAV and send to server
+          const blob = new Blob(audioChunks, { type: 'audio/webm' });
+          const textarea = document.getElementById('chatInput');
+          document.getElementById('recLabel').textContent = '● Transcribing...';
+
+          try {
+            // Convert webm to wav using AudioContext
+            const arrayBuf = await blob.arrayBuffer();
+            const audioCtx = new AudioContext({ sampleRate: 16000 });
+            const decoded = await audioCtx.decodeAudioData(arrayBuf);
+            const wavBlob = audioToWav(decoded);
+            audioCtx.close();
+
+            const res = await fetch('/api/transcribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/octet-stream' },
+              body: wavBlob,
+            });
+            const result = await res.json();
+            if (result.text) {
+              textarea.value = (textarea.value ? textarea.value + ' ' : '') + result.text;
+            } else if (result.error) {
+              appendChatMsg('ai', 'Transcription error: ' + result.error);
+            }
+          } catch (err) {
+            appendChatMsg('ai', 'Transcription failed: ' + err.message);
+          }
+          hideRecordingUI();
+        };
+        mediaRecorder.start();
+        showRecordingUI();
+      } catch (err) {
+        appendChatMsg('ai', 'Microphone access denied');
+      }
+    }
+
+    function audioToWav(audioBuffer) {
+      const numChannels = 1;
+      const sampleRate = audioBuffer.sampleRate;
+      const samples = audioBuffer.getChannelData(0);
+      const buffer = new ArrayBuffer(44 + samples.length * 2);
+      const view = new DataView(buffer);
+      // WAV header
+      const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+      writeStr(0, 'RIFF');
+      view.setUint32(4, 36 + samples.length * 2, true);
+      writeStr(8, 'WAVE');
+      writeStr(12, 'fmt ');
+      view.setUint32(16, 16, true);
+      view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true);
+      view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate * numChannels * 2, true);
+      view.setUint16(32, numChannels * 2, true);
+      view.setUint16(34, 16, true);
+      writeStr(36, 'data');
+      view.setUint32(40, samples.length * 2, true);
+      for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      }
+      return new Blob([buffer], { type: 'audio/wav' });
+    }
+
+    function showRecordingUI() {
+      isRecording = true;
+      document.getElementById('micBtn').classList.add('recording');
+      const label = document.createElement('div');
+      label.className = 'recording-label';
+      label.id = 'recLabel';
+      label.textContent = '● Recording — click 🎤 to stop';
+      document.querySelector('.chat-input-area').after(label);
+    }
+
+    function hideRecordingUI() {
+      isRecording = false;
+      document.getElementById('micBtn').classList.remove('recording');
+      document.getElementById('recLabel')?.remove();
+    }
+
+    function stopVoice() {
+      if (recognition) { recognition.stop(); recognition = null; }
+      if (mediaRecorder && mediaRecorder.state === 'recording') { mediaRecorder.stop(); return; } // onstop handles the rest
+      hideRecordingUI();
+    }
+
+    async function sendChat() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+      input.value = '';
+      input.disabled = true;
+
+      appendChatMsg('user', msg);
+      const typing = appendChatMsg('ai', 'Thinking...');
+      typing.innerHTML = '<span class="typing">Thinking...</span>';
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: msg,
+            history: chatHistory.slice(-10),
+            model: chatModel,
+          }),
+        });
+        const result = await res.json();
+        if (result.error) {
+          typing.textContent = result.error;
+          typing.classList.add('error');
+        } else {
+          typing.textContent = result.reply;
+          chatHistory.push({ role: 'user', text: msg });
+          chatHistory.push({ role: 'model', text: result.reply });
+          if (result.updated) {
+            data = await (await fetch('/api/tasks')).json();
+            renderAll();
+          }
+        }
+      } catch (err) {
+        typing.textContent = 'Connection error';
+        typing.classList.add('error');
+      }
+      input.disabled = false;
+      input.focus();
+    }
+
+    // ---- DRAG & DROP ----
+    let dragGhost = null;
+
+    function onDragStart(e, section, index) {
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'TEXTAREA' || e.target.classList.contains('task-title')) {
+        e.preventDefault();
+        return;
+      }
+      dragState = { section, index };
+      const taskEl = e.target.closest('.task');
+      taskEl.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+
+      // Create persistent floating ghost
+      dragGhost = taskEl.cloneNode(true);
+      dragGhost.className = 'drag-ghost';
+      dragGhost.style.width = taskEl.offsetWidth + 'px';
+      document.body.appendChild(dragGhost);
+
+      // Hide native drag image
+      const blank = document.createElement('canvas');
+      blank.width = 1; blank.height = 1;
+      e.dataTransfer.setDragImage(blank, 0, 0);
+    }
+
+    function onDrag(e) {
+      if (!dragGhost) return;
+      if (e.clientX === 0 && e.clientY === 0) return; // browser fires 0,0 at end
+      dragGhost.style.left = (e.clientX + 12) + 'px';
+      dragGhost.style.top = (e.clientY - 15) + 'px';
+    }
+
+    function onDragEnd(e) {
+      e.target.closest('.task')?.classList.remove('dragging');
+      document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+      dragState = null;
+    }
+
+    function onDragOver(e, section, index) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (!dragState) return;
+
+      const taskEl = e.target.closest('.task');
+      if (!taskEl) return;
+
+      document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+        el.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+
+      const rect = taskEl.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      taskEl.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+    }
+
+    function onListDragOver(e, section) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    async function onListDrop(e, section) {
+      e.preventDefault();
+      if (!dragState) return;
+      if (!e.target.closest('.task')) {
+        const [item] = data[dragState.section].splice(dragState.index, 1);
+        data[section] = data[section] || [];
+        data[section].push(item);
+        const moved = dragState.section !== section;
+        dragState = null;
+        if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+        await save(); renderAll();
+        if (moved) showToast(`Moved to ${section}`);
+      }
+    }
+
+    async function onDrop(e, section, index) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!dragState) return;
+
+      const fromSection = dragState.section;
+      const from = dragState.index;
+      const taskEl = e.target.closest('.task');
+      if (!taskEl) return;
+
+      const rect = taskEl.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      let to = e.clientY < mid ? index : index + 1;
+
+      if (fromSection === section) {
+        if (from === to || from === to - 1) {
+          dragState = null;
+          if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+          renderAll(); return;
+        }
+        const arr = data[section];
+        const [item] = arr.splice(from, 1);
+        if (to > from) to--;
+        arr.splice(to, 0, item);
+      } else {
+        const [item] = data[fromSection].splice(from, 1);
+        data[section] = data[section] || [];
+        data[section].splice(to, 0, item);
+        showToast(`Moved to ${section}`);
+      }
+
+      dragState = null;
+      if (dragGhost) { dragGhost.remove(); dragGhost = null; }
+      await save(); renderAll();
+    }
+
+    // ---- FILTER & TAG CHIPS (also used for quick-add tagging) ----
+    let activeFilter = null; // null = no filter, string = project tag
+
+    function toggleFilter(tag) {
+      activeFilter = activeFilter === tag ? null : tag;
+      renderAll();
+    }
+
+    function clearFilter() {
+      activeFilter = null;
+      renderAll();
+    }
+
+    function taskMatchesFilter(task) {
+      if (!activeFilter) return true;
+      const tags = task.fields?.tags || '';
+      return tags.includes(activeFilter);
+    }
+
+    function getActiveFilterInfo() {
+      if (!activeFilter) return null;
+      const projects = data.projects || [];
+      for (let i = 0; i < projects.length; i++) {
+        const tag = (projects[i].fields?.tags || '').split(/\s+/)[0] || '#' + projects[i].title.toLowerCase().replace(/\s+/g, '-');
+        if (tag === activeFilter) return { name: projects[i].title, color: getProjectColor(projects[i], i) };
+      }
+      return null;
+    }
+
+    function buildFilterChips() {
+      const projects = data.projects || [];
+      if (projects.length === 0) return '';
+      const chips = projects.map((p, i) => {
+        const c = getProjectColor(p, i);
+        const tag = (p.fields?.tags || '').split(/\s+/)[0] || '#' + p.title.toLowerCase().replace(/\s+/g, '-');
+        const active = activeFilter === tag ? 'active' : '';
+        return `<button class="tag-chip ${active}" data-action="filter" data-tag="${esc(tag)}" style="--chip-color:${c}">${esc(p.title)}</button>`;
+      }).join('');
+      const clearBtn = activeFilter ? `<button class="tag-chip" data-action="clear-filter" style="--chip-color:var(--text-dim)">Clear</button>` : '';
+      return `<div class="tag-chips">${chips}${clearBtn}</div>`;
+    }
+
+    function renderTaskColumn(containerId, sectionKey) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+
+      const fi = getActiveFilterInfo();
+      const inputStyle = fi ? `border-color:${fi.color}; box-shadow: 0 0 6px ${fi.color}40` : '';
+      const placeholder = fi ? `Quick add to ${fi.name}...` : 'Quick add...';
+      const qaDiv = document.createElement('div');
+      qaDiv.className = 'col-quick-add';
+      qaDiv.dataset.section = sectionKey;
+      qaDiv.innerHTML = `
+        <div class="qa-row">
+          <input type="text" placeholder="${placeholder}" style="${inputStyle}" data-action="quick-add-input">
+          <button class="btn btn-primary" data-action="quick-add">+</button>
+        </div>
+        ${buildFilterChips()}
+      `;
+      container.appendChild(qaDiv);
+
+      const tasks = data[sectionKey] || [];
+      const list = document.createElement('div');
+      list.className = 'task-list';
+      list.dataset.section = sectionKey;
+
+      const visible = tasks.filter(t => taskMatchesFilter(t));
+      if (visible.length === 0) {
+        list.innerHTML = `<div class="empty-state">${activeFilter ? 'No matching tasks' : 'No tasks — drag here'}</div>`;
+      } else {
+        list.innerHTML = tasks.map((t, i) => taskMatchesFilter(t) ? renderTask(sectionKey, t, i) : '').join('');
+      }
+      container.appendChild(list);
+    }
+
+    async function colQuickAdd(section, container) {
+      const input = container.querySelector('input[type="text"]');
+      const title = input.value.trim();
+      if (!title) return;
+      const tags = activeFilter || '';
+      const fields = tags ? { tags } : {};
+      data[section] = data[section] || [];
+      data[section].push({ done: false, title, fields, steps: [] });
+      input.value = '';
+      await save(); renderAll();
+      showToast(`Added`);
+    }
+
+    // ---- PROJECTS COLUMN ----
+    function renderProjectsColumn() {
+      const container = document.getElementById('colProjects');
+      container.innerHTML = '';
+
+      const qaDiv = document.createElement('div');
+      qaDiv.className = 'col-quick-add';
+      qaDiv.dataset.section = 'projects';
+      qaDiv.innerHTML = `
+        <input type="text" placeholder="Add project..." data-action="quick-add-input">
+        <button class="btn btn-primary" data-action="quick-add">+</button>
+      `;
+      container.appendChild(qaDiv);
+
+      const projects = data.projects || [];
+
+      if (projects.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.style.marginTop = '20px';
+        empty.textContent = 'No projects yet';
+        container.appendChild(empty);
+        return;
+      }
+
+      for (let i = 0; i < projects.length; i++) {
+        const proj = projects[i];
+        const color = getProjectColor(proj, i);
+        const div = document.createElement('div');
+        div.className = 'section project-card';
+        div.dataset.section = 'projects';
+        div.draggable = true;
+
+        div.addEventListener('dragstart', (e) => {
+          if (e.target.tagName === 'INPUT') { e.preventDefault(); return; }
+          dragState = { section: 'projects', index: i };
+          div.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          // Custom ghost
+          const ghost = div.cloneNode(true);
+          ghost.style.cssText = `
+            position: fixed; top: -1000px; left: -1000px;
+            width: ${div.offsetWidth}px;
+            background: var(--surface-2); border: 1px solid ${color};
+            border-radius: 12px; opacity: 0.9;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 12px ${color}40;
+            transform: rotate(1deg);
+          `;
+          document.body.appendChild(ghost);
+          e.dataTransfer.setDragImage(ghost, 20, 20);
+          requestAnimationFrame(() => ghost.remove());
+        });
+        div.addEventListener('dragend', () => {
+          div.classList.remove('dragging');
+          document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
+            el.classList.remove('drag-over-top', 'drag-over-bottom');
+          });
+          dragState = null;
+        });
+        div.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          if (!dragState || dragState.section !== 'projects') return;
+          document.querySelectorAll('.project-card.drag-over-top, .project-card.drag-over-bottom').forEach(el => {
+            el.classList.remove('drag-over-top', 'drag-over-bottom');
+          });
+          const rect = div.getBoundingClientRect();
+          const mid = rect.top + rect.height / 2;
+          div.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+        });
+        div.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          if (!dragState || dragState.section !== 'projects') return;
+          const from = dragState.index;
+          const rect = div.getBoundingClientRect();
+          const mid = rect.top + rect.height / 2;
+          let to = e.clientY < mid ? i : i + 1;
+          if (from !== to && from !== to - 1) {
+            const arr = data.projects;
+            const [item] = arr.splice(from, 1);
+            if (to > from) to--;
+            arr.splice(to, 0, item);
+            await save(); renderAll();
+          }
+          dragState = null;
+        });
+
+        const doneCount = (proj.steps || []).filter(s => s.done).length;
+        const totalSteps = (proj.steps || []).length;
+        const progressText = totalSteps > 0 ? `${doneCount}/${totalSteps}` : '';
+
+        div.innerHTML = `
+          <div class="section-header" style="border-left: 3px solid ${color};">
+            <h2>
+              <span class="proj-editable" data-action="edit-project" data-index="${i}" data-field="title">${esc(proj.title)}</span> ${proj.fields?.notes ? `<span class="proj-editable proj-notes-inline" data-action="edit-project" data-index="${i}" data-field="notes" style="font-weight:400;font-size:11px;color:var(--text-dim);margin-left:4px">— ${esc(proj.fields.notes)}</span>` : `<span class="proj-editable proj-notes-inline" data-action="edit-project" data-index="${i}" data-field="notes" style="font-weight:400;font-size:11px;color:var(--text-dim);margin-left:4px;opacity:0.4">+ note</span>`} <span class="count">${progressText}</span>
+            </h2>
+            <div class="project-header-actions">
+              <button class="project-color-btn" style="background:${color}" data-action="toggle-color-picker" data-index="${i}" title="Change color"></button>
+              <button class="project-delete" data-action="delete-task" data-section="projects" data-index="${i}">×</button>
+            </div>
+          </div>
+          <div class="color-picker-dropdown" id="colorPicker-${i}" style="display:none">
+            ${COLOR_PALETTE.map(c => `<button class="color-swatch ${c === color ? 'active' : ''}" style="background:${c}" data-action="pick-color" data-index="${i}" data-color="${c}"></button>`).join('')}
+          </div>
+          <div class="section-body">
+            ${(proj.steps || []).map((s, si) => `
+              <div class="step ${s.done ? 'is-done' : ''}" style="padding:4px 14px;">
+                <input type="checkbox" ${s.done ? 'checked' : ''}
+                       data-action="toggle-step" data-section="projects" data-index="${i}" data-step="${si}">
+                <span>${esc(s.text)}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        container.appendChild(div);
+      }
+    }
+
+    // ---- RENDER TASK ----
+    function renderTask(sectionKey, task, index) {
+      const doneClass = task.done ? 'is-done' : '';
+      const dl = deadlineStatus(task.fields?.deadline);
+      const tags = task.fields?.tags || '';
+      const notes = task.fields?.notes || '';
+
+      const taskColors = getTaskColors(tags);
+      let barStyle = 'background: var(--border);';
+      if (taskColors.length === 1) {
+        barStyle = `background: ${taskColors[0].color};`;
+      } else if (taskColors.length > 1) {
+        const stops = taskColors.map((c, i) =>
+          `${c.color} ${(i / taskColors.length) * 100}%, ${c.color} ${((i + 1) / taskColors.length) * 100}%`
+        ).join(', ');
+        barStyle = `background: linear-gradient(to bottom, ${stops});`;
+      }
+      const barTitle = taskColors.map(c => c.name).join(', ');
+
+      let metaHtml = '';
+      if (dl) metaHtml += `<span class="${dl.cls}">${dl.label}</span>`;
+      if (notes) metaHtml += `<span>${esc(notes)}</span>`;
+
+      let stepsHtml = '';
+      if (task.steps && task.steps.length > 0) {
+        const doneCount = task.steps.filter(s => s.done).length;
+        stepsHtml = `<div class="task-steps">
+          <div class="progress-label">${doneCount}/${task.steps.length} steps</div>
+          ${task.steps.map((s, si) => `
+          <div class="step ${s.done ? 'is-done' : ''}">
+            <input type="checkbox" ${s.done ? 'checked' : ''}
+                   data-action="toggle-step" data-section="${sectionKey}" data-index="${index}" data-step="${si}">
+            <span>${esc(s.text)}</span>
+          </div>`).join('')}</div>`;
+      }
+
+      return `
+        <div class="task ${doneClass}" draggable="true"
+             data-section="${sectionKey}" data-index="${index}">
+          <div class="task-color-bar" style="${barStyle}" title="${esc(barTitle)}"></div>
+          <div class="task-inner">
+            <span class="drag-handle">⠿</span>
+            <input type="checkbox" ${task.done ? 'checked' : ''}
+                   data-action="toggle-task" data-section="${sectionKey}" data-index="${index}">
+            <div class="task-content">
+              <div class="task-title" data-action="edit-title" data-section="${sectionKey}" data-index="${index}">${esc(task.title)}</div>
+              ${metaHtml ? `<div class="task-meta">${metaHtml}</div>` : ''}
+              ${stepsHtml}
+            </div>
+            <div class="task-actions">
+              <button class="task-tag-btn" style="background:${taskColors.length ? taskColors[0].color : 'transparent'}" data-action="toggle-tags" data-section="${sectionKey}" data-index="${index}" title="Set project"></button>
+              <div class="task-tag-dropdown" id="taskTags-${sectionKey}-${index}">
+                <button class="task-tag-none" data-action="set-project" data-section="${sectionKey}" data-index="${index}" data-tag="" title="No project"></button>
+                ${(data.projects||[]).map((p,pi) => {
+                  const pc = getProjectColor(p,pi);
+                  const ptag = (p.fields?.tags||'').split(/\s+/)[0] || '#'+p.title.toLowerCase().replace(/\s+/g,'-');
+                  const isActive = tags.includes(ptag) ? 'active' : '';
+                  return `<button class="task-tag-opt ${isActive}" style="background:${pc}" data-action="set-project" data-section="${sectionKey}" data-index="${index}" data-tag="${esc(ptag)}" title="${esc(p.title)}"></button>`;
+                }).join('')}
+              </div>
+              <button data-action="delete-task" data-section="${sectionKey}" data-index="${index}">×</button>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+
+    // ---- ACTIONS ----
+    async function toggleTask(section, index) {
+      const task = data[section][index];
+      task.done = !task.done;
+      if (task.done && section !== 'done') {
+        task.fields = task.fields || {};
+        task.fields.done = new Date().toISOString().slice(0, 10);
+        data[section].splice(index, 1);
+        data.done.unshift(task);
+        showToast('Done');
+      }
+      if (!task.done && section === 'done') {
+        delete task.fields.done;
+        data.done.splice(index, 1);
+        data.now.unshift(task);
+        showToast('Moved back');
+      }
+      await save(); renderAll();
+    }
+
+    async function toggleStep(section, taskIdx, stepIdx) {
+      data[section][taskIdx].steps[stepIdx].done = !data[section][taskIdx].steps[stepIdx].done;
+      await save(); renderAll();
+    }
+
+    async function deleteTask(section, index) {
+      if (section === 'projects') {
+        const proj = data.projects[index];
+        const tag = (proj.fields?.tags || '').split(/\s+/)[0] || '#' + proj.title.toLowerCase().replace(/\s+/g, '-');
+        const related = ['now', 'later', 'done'].reduce((n, s) =>
+          n + (data[s] || []).filter(t => (t.fields?.tags || '').includes(tag)).length, 0);
+        const msg = related > 0
+          ? `Delete "${proj.title}" and its ${related} related task${related > 1 ? 's' : ''}?`
+          : `Delete "${proj.title}"?`;
+        if (!confirm(msg)) return;
+        if (related > 0) {
+          for (const s of ['now', 'later', 'done']) {
+            data[s] = (data[s] || []).filter(t => !(t.fields?.tags || '').includes(tag));
+          }
+        }
+      } else {
+        if (!confirm('Delete this task?')) return;
+      }
+      data[section].splice(index, 1);
+      await save(); renderAll();
+    }
+
+    // ---- DONE DRAWER ----
+    function openDoneDrawer() {
+      renderDoneList();
+      document.getElementById('drawerOverlay').classList.add('open');
+    }
+
+    function closeDoneDrawer(e) {
+      if (e && e.target !== e.currentTarget) return;
+      document.getElementById('drawerOverlay').classList.remove('open');
+    }
+
+    function renderDoneList() {
+      const list = document.getElementById('doneList');
+      const tasks = data.done || [];
+      if (tasks.length === 0) {
+        list.innerHTML = '<div class="empty-state" style="margin-top:40px">Nothing completed yet</div>';
+        return;
+      }
+      list.innerHTML = tasks.map((t, i) => `
+        <div class="done-task">
+          <div style="flex:1">
+            <div class="task-title">${esc(t.title)}</div>
+            ${t.fields?.done ? `<div class="done-date">Completed ${t.fields.done}</div>` : ''}
+          </div>
+          <button class="undo-btn" data-action="undo-task" data-index="${i}">Undo</button>
+        </div>
+      `).join('');
+    }
+
+    async function undoTask(index) {
+      const task = data.done.splice(index, 1)[0];
+      task.done = false;
+      delete task.fields?.done;
+      data.now.unshift(task);
+      await save();
+      renderAll();
+      renderDoneList();
+      showToast('Moved back');
+    }
+
+    load();
+    loadProfiles();
+    loadChatHistory();
+    initModelSelect();
+    checkWhisper().then(renderVoiceToggle);
+
+    // ---- DELEGATED EVENT HANDLERS ----
+    document.addEventListener('click', (e) => {
+      const el = e.target.closest('[data-action]');
+      if (!el) {
+        document.querySelectorAll('.task-tag-dropdown.open').forEach(d => d.classList.remove('open'));
+        return;
+      }
+      const action = el.dataset.action;
+      const section = el.dataset.section;
+      const index = Number(el.dataset.index);
+
+      switch (action) {
+        case 'filter':
+          toggleFilter(el.dataset.tag);
+          break;
+        case 'clear-filter':
+          clearFilter();
+          break;
+        case 'quick-add': {
+          const qa = el.closest('.col-quick-add');
+          colQuickAdd(qa.dataset.section, qa);
+          break;
+        }
+        case 'edit-title':
+          editTaskTitle(section, index, el);
+          break;
+        case 'toggle-tags':
+          e.stopPropagation();
+          toggleTaskTags(e, section, index);
+          break;
+        case 'set-project':
+          setTaskProject(section, index, el.dataset.tag || null);
+          break;
+        case 'delete-task':
+          deleteTask(section, index);
+          break;
+        case 'edit-project':
+          editProjectField(index, el.dataset.field, el);
+          break;
+        case 'toggle-color-picker':
+          e.stopPropagation();
+          toggleColorPicker(e, index);
+          break;
+        case 'pick-color':
+          pickColor(index, el.dataset.color);
+          break;
+        case 'undo-task':
+          undoTask(index);
+          break;
+      }
+    });
+
+    document.addEventListener('change', (e) => {
+      const el = e.target.closest('[data-action]');
+      if (!el) return;
+      const action = el.dataset.action;
+      const section = el.dataset.section;
+      const index = Number(el.dataset.index);
+      if (action === 'toggle-task') toggleTask(section, index);
+      if (action === 'toggle-step') toggleStep(section, index, Number(el.dataset.step));
+    });
+
+    document.addEventListener('keydown', (e) => {
+      const el = e.target.closest('[data-action="quick-add-input"]');
+      if (el && e.key === 'Enter') {
+        const qa = el.closest('.col-quick-add');
+        colQuickAdd(qa.dataset.section, qa);
+      }
+    });
+
+    // Delegated drag-and-drop on task lists
+    document.addEventListener('dragstart', (e) => {
+      if (e.target.closest('.project-card')) return; // handled by project's own listeners
+      const task = e.target.closest('.task[data-section]');
+      if (!task) return;
+      onDragStart(e, task.dataset.section, Number(task.dataset.index));
+    });
+    document.addEventListener('drag', (e) => {
+      if (e.target.closest('.project-card')) return;
+      onDrag(e);
+    });
+    document.addEventListener('dragend', (e) => {
+      if (e.target.closest('.project-card')) return;
+      onDragEnd(e);
+    });
+    document.addEventListener('dragover', (e) => {
+      if (e.target.closest('.project-card')) return; // handled by project's own listeners
+      const task = e.target.closest('.task[data-section]');
+      if (task) {
+        onDragOver(e, task.dataset.section, Number(task.dataset.index));
+        return;
+      }
+      const list = e.target.closest('.task-list[data-section]');
+      if (list) onListDragOver(e, list.dataset.section);
+    });
+    document.addEventListener('drop', (e) => {
+      if (e.target.closest('.project-card')) return; // handled by project's own listeners
+      const task = e.target.closest('.task[data-section]');
+      if (task) {
+        onDrop(e, task.dataset.section, Number(task.dataset.index));
+        return;
+      }
+      const list = e.target.closest('.task-list[data-section]');
+      if (list) onListDrop(e, list.dataset.section);
+    });
+  </script>
+</body>
+</html>
