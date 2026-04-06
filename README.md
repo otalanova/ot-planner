@@ -2,7 +2,7 @@
 
 A minimal, file-based task and project planner with an AI chat assistant. No database — everything is stored in a single markdown file.
 
-Developed on macOS. Windows and Linux testing is ongoing — if you run into issues, please [open an issue](https://github.com/otalanova/ot-planner/issues).
+Developed on macOS. Windows and Linux testing is ongoing.
 
 ## Features
 
@@ -15,7 +15,7 @@ Developed on macOS. Windows and Linux testing is ongoing — if you run into iss
 - **Markdown storage** — all data lives in `data/tasks.md`, human-readable and version-controllable
 - **Daily backups** — automatic snapshot before the first change of each day
 - **Profiles** — switch between Personal and Demo task lists from the header
-- **Voice input** — dictate via browser speech recognition (Chrome/Edge), or optional local Whisper (see [Voice input](#voice-input))
+- **Voice input** — dictate via your browser's built-in speech recognition (Chrome/Edge). Local Whisper transcription can also be installed for offline use
 
 ## Quick start
 
