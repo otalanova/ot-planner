@@ -98,7 +98,7 @@
     .col-dot.later { background: var(--warn); box-shadow: 0 0 8px rgba(245,158,11,0.3); }
     .col-dot.projects { background: var(--accent); box-shadow: 0 0 8px rgba(45,212,191,0.3); }
 
-    .col-body { flex: 1; overflow-y: auto; }
+    .col-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
     .col-body::-webkit-scrollbar { width: 6px; }
     .col-body::-webkit-scrollbar-track { background: transparent; }
     .col-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -235,6 +235,7 @@
     .task-list {
       padding: 4px 2px;
       min-height: 40px;
+      flex: 1;
     }
 
     .task {
@@ -813,6 +814,9 @@
       renderTaskColumn('colNow', 'now');
       renderTaskColumn('colLater', 'later');
       renderProjectsColumn();
+      if (document.getElementById('drawerOverlay').classList.contains('open')) {
+        renderDoneList();
+      }
       _colorMapCache = null;
     }
 
@@ -1149,7 +1153,7 @@
       if (!dragState) return;
 
       const taskEl = e.target.closest('.task');
-      if (!taskEl) return;
+      if (!taskEl || taskEl.classList.contains('dragging')) return;
 
       document.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(el => {
         el.classList.remove('drag-over-top', 'drag-over-bottom');
@@ -1261,6 +1265,7 @@
     function renderTaskColumn(containerId, sectionKey) {
       const container = document.getElementById(containerId);
       container.innerHTML = '';
+      container.dataset.section = sectionKey;
 
       const fi = getActiveFilterInfo();
       const inputStyle = fi ? `border-color:${fi.color}; box-shadow: 0 0 6px ${fi.color}40` : '';
@@ -1552,19 +1557,29 @@
     function renderDoneList() {
       const list = document.getElementById('doneList');
       const tasks = data.done || [];
-      if (tasks.length === 0) {
-        list.innerHTML = '<div class="empty-state" style="margin-top:40px">Nothing completed yet</div>';
-        return;
+      const filtered = tasks.filter(t => taskMatchesFilter(t));
+      let html = `<div style="padding:10px 20px 4px">${buildFilterChips()}</div>`;
+      if (filtered.length === 0) {
+        html += `<div class="empty-state" style="margin-top:40px">${activeFilter ? 'No matching completed tasks' : 'Nothing completed yet'}</div>`;
+      } else {
+        html += filtered.map((t) => {
+          const origIndex = tasks.indexOf(t);
+          const taskColors = getTaskColors(t.fields?.tags || '');
+          let barStyle = '';
+          if (taskColors.length > 0) {
+            barStyle = `background:${taskColors[0].color};width:4px;border-radius:2px;flex-shrink:0;align-self:stretch;margin-right:8px`;
+          }
+          return `<div class="done-task">
+            ${barStyle ? `<div style="${barStyle}"></div>` : ''}
+            <div style="flex:1">
+              <div class="task-title">${esc(t.title)}</div>
+              ${t.fields?.done ? `<div class="done-date">Completed ${t.fields.done}</div>` : ''}
+            </div>
+            <button class="undo-btn" data-action="undo-task" data-index="${origIndex}">Undo</button>
+          </div>`;
+        }).join('');
       }
-      list.innerHTML = tasks.map((t, i) => `
-        <div class="done-task">
-          <div style="flex:1">
-            <div class="task-title">${esc(t.title)}</div>
-            ${t.fields?.done ? `<div class="done-date">Completed ${t.fields.done}</div>` : ''}
-          </div>
-          <button class="undo-btn" data-action="undo-task" data-index="${i}">Undo</button>
-        </div>
-      `).join('');
+      list.innerHTML = html;
     }
 
     async function undoTask(index) {
@@ -1672,22 +1687,26 @@
     document.addEventListener('dragover', (e) => {
       if (e.target.closest('.project-card')) return; // handled by project's own listeners
       const task = e.target.closest('.task[data-section]');
-      if (task) {
+      if (task && !task.classList.contains('dragging')) {
         onDragOver(e, task.dataset.section, Number(task.dataset.index));
         return;
       }
       const list = e.target.closest('.task-list[data-section]');
-      if (list) onListDragOver(e, list.dataset.section);
+      if (list) { onListDragOver(e, list.dataset.section); return; }
+      const col = e.target.closest('.col-body[data-section]');
+      if (col) onListDragOver(e, col.dataset.section);
     });
     document.addEventListener('drop', (e) => {
       if (e.target.closest('.project-card')) return; // handled by project's own listeners
       const task = e.target.closest('.task[data-section]');
-      if (task) {
+      if (task && !task.classList.contains('dragging')) {
         onDrop(e, task.dataset.section, Number(task.dataset.index));
         return;
       }
       const list = e.target.closest('.task-list[data-section]');
-      if (list) onListDrop(e, list.dataset.section);
+      if (list) { onListDrop(e, list.dataset.section); return; }
+      const col = e.target.closest('.col-body[data-section]');
+      if (col) onListDrop(e, col.dataset.section);
     });
   </script>
 </body>
