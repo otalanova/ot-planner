@@ -1072,6 +1072,20 @@
           typing.classList.add('error');
         } else {
           typing.textContent = result.reply;
+          if (result.tokens) {
+            // Pricing per 1M tokens (USD)
+            const pricing = {
+              'gemini-2.5-flash': { input: 0.15, output: 0.60 },
+              'gemini-2.5-pro':   { input: 1.25, output: 10.00 },
+            };
+            const rates = pricing[chatModel] || pricing['gemini-2.5-flash'];
+            const cost = (result.tokens.prompt * rates.input + result.tokens.reply * rates.output) / 1_000_000;
+            const costStr = cost < 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toFixed(3)}`;
+            const info = document.createElement('div');
+            info.style.cssText = 'font-size:10px;color:var(--text-dim);margin-top:4px';
+            info.textContent = `${result.tokens.prompt} in · ${result.tokens.reply} out · ${costStr}`;
+            typing.appendChild(info);
+          }
           chatHistory.push({ role: 'user', text: msg });
           chatHistory.push({ role: 'model', text: result.reply });
           if (result.updated) {

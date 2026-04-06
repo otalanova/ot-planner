@@ -15,8 +15,13 @@ Works on **macOS**, **Linux**, and **Windows**.
 - **Markdown storage** — all data lives in `data/tasks.md`, human-readable and version-controllable
 - **Daily backups** — automatic daily snapshots before any change
 - **Profiles** — switch between Personal and Demo task lists from the header
+- **Voice input** — dictate messages using your browser's built-in speech recognition (Chrome/Edge). Optional local Whisper transcription is also supported (see below)
 
 ## Quick start
+
+### Windows note
+
+Windows may show security prompts during setup — this is normal. If the Node.js installer asks for permission to make changes, click **Yes**. If PowerShell shows an execution policy warning, follow the prompt to allow it. If `npm install` or `npm start` fails with a permissions error, try running PowerShell as Administrator (right-click → **Run as administrator**). You may also see a Windows Firewall popup when the server starts — click **Allow access** to let it run on localhost.
 
 ### Step 1 — Install Node.js
 
@@ -135,6 +140,31 @@ All tasks are stored in `data/tasks.md` as plain markdown:
 ```
 
 Edit the file directly or use the web UI — they stay in sync. Backups are saved as `data/YYYYMMDD_tasks.md` (one per day, created before the first change of the day).
+
+## What gets sent to Gemini
+
+When you use the AI chat, each message sends the following to the Gemini API:
+
+1. **System prompt** — instructions explaining the task data structure, color system, and how to respond (~200 tokens)
+2. **Chat history** — the last 10 messages from the conversation (text only)
+3. **Your full task state** — all tasks, projects, and done items as JSON, plus a project summary
+4. **Your message** — what you typed
+
+Everything runs through your own API key directly to Google's Gemini API. No data is sent to any other server. The token count is shown under each AI reply so you can see exactly how much context is being used.
+
+Without an API key, the chat is disabled but all other features (adding tasks, drag & drop, projects, filtering) work fully offline.
+
+## Voice input
+
+Voice input works out of the box in **Chrome** and **Edge** using the browser's built-in speech recognition — just click the microphone button in the chat area.
+
+For higher-quality offline transcription, you can optionally set up local [Whisper](https://github.com/ggerganov/whisper.cpp):
+
+1. Install `whisper-cli` (e.g. `brew install whisper-cpp` on macOS)
+2. Download a Whisper model (e.g. `ggml-base.bin`, ~150 MB) and place it in a `models/` folder inside the project directory
+3. Restart the server — the Whisper/Browser toggle will appear automatically
+
+This is entirely optional. Without Whisper, browser voice works fine.
 
 ## Project structure
 

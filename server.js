@@ -280,7 +280,13 @@ app.post('/api/chat', async (req, res) => {
     chat.push({ role: 'model', text: reply, ts: Date.now() });
     saveChat(chat);
 
-    res.json({ reply, updated });
+    const usage = result.usageMetadata || {};
+    const tokens = {
+      prompt: usage.promptTokenCount || 0,
+      reply: usage.candidatesTokenCount || 0,
+      total: usage.totalTokenCount || 0,
+    };
+    res.json({ reply, updated, tokens });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
