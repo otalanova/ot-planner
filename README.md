@@ -135,16 +135,16 @@ All tasks are stored in `data/tasks.md` as plain markdown:
 
 Edit the file directly or use the web UI — they stay in sync.
 
-## What gets sent to Gemini
+## What gets sent to the AI
 
-When you use the AI chat, each message sends the following to the Gemini API:
+When you use the AI chat, each message sends the following to the selected model (Gemini API or local Gemma via Ollama):
 
 1. **System prompt** — instructions explaining the data structure and how to respond (~200 tokens)
 2. **Chat history** — the last 10 messages (text only)
 3. **Your full task state** — all tasks, projects, and done items as JSON
 4. **Your message**
 
-All requests go directly from your server to the Gemini API using your own key. No data is sent to any third party. The token count and cost estimate are shown under each reply.
+With Gemini, requests go directly from your server to the Gemini API using your own key. With Gemma, everything stays on your machine. The token count and cost estimate are shown under each reply (local models show "free").
 
 ## Voice input
 
@@ -153,10 +153,62 @@ Voice input works out of the box in **Chrome** and **Edge** using the browser's 
 For offline transcription, you can optionally set up local [Whisper](https://github.com/ggerganov/whisper.cpp):
 
 1. Install `whisper-cli` (e.g. `brew install whisper-cpp` on macOS)
-2. Download a model file (e.g. `ggml-base.bin`, ~150 MB) into a `models/` folder in the project directory
+2. Download a model file (e.g. `ggml-base.bin`, ~150 MB) into `~/Documents/Models/`
 3. Restart the server — a Whisper/Browser toggle will appear
 
 This is entirely optional.
+
+## Local AI with Ollama
+
+You can run a fully local AI chat using [Ollama](https://ollama.com) — no API key, no cloud, fully offline:
+
+1. Install Ollama from [ollama.com](https://ollama.com)
+2. Pull a model: `ollama pull gemma3:4b`
+3. Restart the server — the model will appear in the chat dropdown
+
+The app auto-detects installed Ollama models on startup. Any model Ollama supports can be added to the `OLLAMA_MODELS` list in `server.js`.
+
+### Tested models
+
+| Model | Size | Speed on MacBook Air | Reliability | Verdict |
+|-------|------|---------------------|-------------|---------|
+| `gemma3:1b` | ~1 GB | Fast (~5s) | Poor — drops tasks, renames things, returns broken JSON | **Not recommended** |
+| `gemma3:4b` | ~3 GB | Slow (30–60s) | Mixed — better at preserving tasks, but still makes mistakes | **Use with caution** |
+
+### Why local models struggle
+
+The AI chat works by sending your full task list as JSON and asking the model to return it in full with changes applied. This requires the model to faithfully copy dozens of tasks verbatim — something small local models are bad at. Common failure modes:
+
+- Silently dropping tasks from sections
+- Renaming tasks the user didn't ask to change
+- Duplicating entries
+- Returning invalid JSON that fails to parse
+
+The app has a safety check that rejects AI updates that would remove more than half your tasks, plus server-side logging to help diagnose issues. But the safeguard is not foolproof — a model can still corrupt data while keeping the task count close enough.
+
+### Tips for local models
+
+Small models (4B and under) are not flagship-level — they need explicit, simple instructions to work well. When using them:
+
+- **Be specific:** say "mark OCR task as done and move to done section" instead of just "tick off OCR"
+- **One change at a time:** don't ask to add, rename, and move tasks in a single message
+- **Avoid ambiguity:** use exact task names rather than shorthand
+
+The system prompt has been tuned to give small models extra guidance (e.g. explicitly telling them to move completed tasks to the "done" section), but they will still make mistakes that Gemini handles effortlessly.
+
+### Recommendation
+
+Use **Gemini** (free tier available) for reliable task management. Local models are best suited for chat questions that don't modify tasks, experimentation, or fully offline use. If you use a local model, keep an eye on the server logs for rejected updates.
+
+### Ollama model storage
+
+By default Ollama stores models in `~/.ollama/models`. To change the location (e.g. to share models across projects), set the `OLLAMA_MODELS` environment variable before starting Ollama:
+
+```bash
+export OLLAMA_MODELS=~/Documents/Models/ollama
+```
+
+Add it to your `~/.zshrc` (or `~/.bashrc`) to make it permanent.
 
 ## Project structure
 

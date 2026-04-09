@@ -111,8 +111,9 @@ function createDailyBackup() {
 
 // ---------- Whisper transcription ----------
 
+const MODELS_DIR = process.env.MODELS_DIR || path.join(require('os').homedir(), 'Documents', 'Models');
 const WHISPER_CLI = process.env.WHISPER_CLI || 'whisper-cli';
-const WHISPER_MODEL = process.env.WHISPER_MODEL || path.join(__dirname, 'models', 'ggml-base.bin');
+const WHISPER_MODEL = process.env.WHISPER_MODEL || path.join(MODELS_DIR, 'ggml-base.bin');
 const TMP_DIR = path.join(__dirname, 'data');
 
 // Check if whisper is available
@@ -198,11 +199,21 @@ Multiple tags can be space-separated: "#project-a #project-b".
 DO NOT set fields.color on tasks — color comes from the project match via tags.
 
 ## How to respond
-When the user asks to add, move, delete, rename, or rearrange tasks: respond with a JSON block wrapped in \`\`\`json ... \`\`\` containing the FULL updated tasks object (all 4 sections). Keep all existing tasks intact unless explicitly asked to change them.
+When the user asks to add, move, delete, rename, or rearrange tasks: respond with a JSON block wrapped in \`\`\`json ... \`\`\` containing the FULL updated tasks object (all 4 sections: now, later, projects, done). EVERY section must be present in your response.
 
 If the user is just chatting or asking a question (not modifying tasks), respond normally without JSON.
 
+## CRITICAL — DO NOT DROP TASKS
+You MUST copy ALL existing tasks into your response. The JSON you return REPLACES the entire file.
+If you omit a task, it is permanently deleted. If you omit a section, all tasks in it are deleted.
+- ALWAYS include all 4 sections: "now", "later", "projects", "done"
+- ALWAYS copy every task from every section, even sections you are not modifying
+- Only remove a task if the user EXPLICITLY asks to delete it
+- When adding a task, copy ALL existing tasks first, then append the new one
+- When in doubt, include the task — never silently drop anything
+
 ## Rules
+- When marking a task as done (tick off, complete, finish), MOVE it from its current section to the "done" section, set done: true, and add fields.done with today's date (YYYY-MM-DD)
 - When adding a task and the user mentions or implies a project, set fields.tags to the right project hashtag(s)
 - When moving a task, remove from source section and add to target
 - When reordering, change the array order
@@ -210,25 +221,41 @@ If the user is just chatting or asking a question (not modifying tasks), respond
 - Keep your text response brief — just confirm what you did
 - Be friendly and concise`;
 
-const ALLOWED_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'];
+const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro'];
+const OLLAMA_MODELS = ['gemma3:4b'];
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+
+// Check which models are available
+app.get('/api/models', async (req, res) => {
+  const available = [];
+  if (GEMINI_API_KEY) {
+    available.push(
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'gemini' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', provider: 'gemini' },
+    );
+  }
+  try {
+    const resp = await fetch(`${OLLAMA_URL}/api/tags`, { signal: AbortSignal.timeout(2000) });
+    if (resp.ok) {
+      const data = await resp.json();
+      const installed = (data.models || []).map(m => m.name);
+      const OLLAMA_NAMES = { 'gemma3:1b': 'Gemma 3 1B (local)', 'gemma3:4b': 'Gemma 3 4B (local)' };
+      for (const id of OLLAMA_MODELS) {
+        if (installed.some(n => n === id || n.startsWith(id + ':'))) {
+          available.push({ id, name: OLLAMA_NAMES[id] || id, provider: 'ollama' });
+        }
+      }
+    }
+  } catch {}
+  res.json(available);
+});
 
 app.post('/api/chat', async (req, res) => {
-  if (!GEMINI_API_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
-  }
   const { message, history, model } = req.body;
-  const geminiModel = ALLOWED_MODELS.includes(model) ? model : ALLOWED_MODELS[0];
   const filePath = path.join(DATA_DIR, 'tasks.md');
   const content = fs.readFileSync(filePath, 'utf-8');
   const tasks = parseTasksMd(content);
 
-  const contents = [];
-  // Add conversation history
-  if (history && history.length > 0) {
-    for (const h of history) {
-      contents.push({ role: h.role, parts: [{ text: h.text }] });
-    }
-  }
   // Build project summary for context
   const projectSummary = (tasks.projects || []).map((p, i) => {
     const tag = (p.fields?.tags || '').split(/\s+/)[0] || '#' + p.title.toLowerCase().replace(/\s+/g, '-');
@@ -236,61 +263,142 @@ app.post('/api/chat', async (req, res) => {
     return `  - "${p.title}" → tag: ${tag}${color ? ', color: ' + color : ''}`;
   }).join('\n');
 
-  // Add current message with full context
   const userMsg = `Current projects:\n${projectSummary}\n\nCurrent tasks:\n\`\`\`json\n${JSON.stringify(tasks, null, 2)}\n\`\`\`\n\nUser request: ${message}`;
-  contents.push({ role: 'user', parts: [{ text: userMsg }] });
 
-  try {
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: CHAT_SYSTEM }] },
-          contents,
-        }),
-      }
-    );
-    const result = await resp.json();
-    if (!resp.ok) {
-      return res.status(500).json({ error: result.error?.message || 'Gemini API error' });
+  let aiText, tokens;
+
+  // Route to Ollama (Gemma) or Gemini
+  if (OLLAMA_MODELS.includes(model)) {
+    try {
+      aiText = await chatOllama(model, userMsg, history);
+      tokens = null; // Ollama doesn't charge per token
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
     }
-    const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  } else {
+    if (!GEMINI_API_KEY) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY not set' });
+    }
+    const geminiModel = GEMINI_MODELS.includes(model) ? model : GEMINI_MODELS[0];
+    try {
+      const result = await chatGemini(geminiModel, userMsg, history);
+      aiText = result.text;
+      tokens = result.tokens;
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
 
-    // Check if AI returned a JSON update
-    const jsonMatch = aiText.match(/```json\s*([\s\S]*?)```/);
-    let updated = false;
-    if (jsonMatch) {
-      try {
-        const newTasks = JSON.parse(jsonMatch[1]);
+  // Check if AI returned a JSON update
+  const jsonMatch = aiText.match(/```json\s*([\s\S]*?)```/);
+  let updated = false;
+  if (jsonMatch) {
+    try {
+      const newTasks = JSON.parse(jsonMatch[1]);
+      // Validate: reject if AI dropped too many tasks
+      const oldCount = ['now', 'later', 'projects', 'done'].reduce((n, s) => n + (tasks[s] || []).length, 0);
+      const newCount = ['now', 'later', 'projects', 'done'].reduce((n, s) => n + (newTasks[s] || []).length, 0);
+      console.log(`[chat] AI returned JSON — tasks: ${oldCount} → ${newCount}`);
+      if (oldCount > 0 && newCount < oldCount * 0.5) {
+        console.log(`[chat] REJECTED — would drop ${oldCount - newCount} tasks`);
+        aiText = `⚠️ I tried to update tasks but the response would have removed ${oldCount - newCount} of ${oldCount} tasks. Update rejected to protect your data. Please try again with a simpler request.`;
+      } else {
+        // Fix: move done tasks to "done" section if AI left them in place
+        for (const s of ['now', 'later']) {
+          const arr = newTasks[s] || [];
+          for (let i = arr.length - 1; i >= 0; i--) {
+            if (arr[i].done) {
+              const task = arr.splice(i, 1)[0];
+              task.fields = task.fields || {};
+              if (!task.fields.done) task.fields.done = new Date().toISOString().slice(0, 10);
+              newTasks.done = newTasks.done || [];
+              newTasks.done.unshift(task);
+              console.log(`[chat] Auto-moved "${task.title}" to done section`);
+            }
+          }
+        }
         createDailyBackup();
         const md = buildTasksMd(newTasks);
         fs.writeFileSync(filePath, md, 'utf-8');
         updated = true;
-      } catch (e) { /* ignore parse errors, just show text */ }
+        console.log(`[chat] Tasks updated successfully`);
+      }
+    } catch (e) {
+      console.log(`[chat] JSON parse error: ${e.message}`);
+      console.log(`[chat] Raw JSON:\n${jsonMatch[1].slice(0, 500)}`);
     }
+  } else {
+    console.log(`[chat] No JSON block in response — text only`);
+  }
 
-    // Strip JSON block from visible reply
-    const reply = aiText.replace(/```json[\s\S]*?```/g, '').trim() || 'Done!';
+  // Strip JSON block from visible reply
+  const reply = aiText.replace(/```json[\s\S]*?```/g, '').trim() || 'Done!';
 
-    // Persist chat history
-    const chat = loadChat();
-    chat.push({ role: 'user', text: message, ts: Date.now() });
-    chat.push({ role: 'model', text: reply, ts: Date.now() });
-    saveChat(chat);
+  // Persist chat history
+  const chat = loadChat();
+  chat.push({ role: 'user', text: message, ts: Date.now() });
+  chat.push({ role: 'model', text: reply, ts: Date.now() });
+  saveChat(chat);
 
-    const usage = result.usageMetadata || {};
-    const tokens = {
+  res.json({ reply, updated, tokens });
+});
+
+async function chatGemini(model, userMsg, history) {
+  const contents = [];
+  if (history && history.length > 0) {
+    for (const h of history) {
+      contents.push({ role: h.role, parts: [{ text: h.text }] });
+    }
+  }
+  contents.push({ role: 'user', parts: [{ text: userMsg }] });
+
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: CHAT_SYSTEM }] },
+        contents,
+      }),
+    }
+  );
+  const result = await resp.json();
+  if (!resp.ok) {
+    throw new Error(result.error?.message || 'Gemini API error');
+  }
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const usage = result.usageMetadata || {};
+  return {
+    text,
+    tokens: {
       prompt: usage.promptTokenCount || 0,
       reply: usage.candidatesTokenCount || 0,
       total: usage.totalTokenCount || 0,
-    };
-    res.json({ reply, updated, tokens });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    },
+  };
+}
+
+async function chatOllama(model, userMsg, history) {
+  const messages = [{ role: 'system', content: CHAT_SYSTEM }];
+  if (history && history.length > 0) {
+    for (const h of history) {
+      messages.push({ role: h.role === 'user' ? 'user' : 'assistant', content: h.text });
+    }
   }
-});
+  messages.push({ role: 'user', content: userMsg });
+
+  const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, messages, stream: false }),
+  });
+  const result = await resp.json();
+  if (!resp.ok) {
+    throw new Error(result.error || 'Ollama error');
+  }
+  return result.message?.content || '';
+}
 
 // ---------- Markdown parser ----------
 

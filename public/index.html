@@ -519,7 +519,7 @@
   <div class="columns">
     <div class="col col-input">
       <div class="col-header" style="display:flex;justify-content:space-between;align-items:center">
-        Chat <span style="font-weight:400;font-size:10px;color:var(--text-dim);margin-left:4px">(<select id="modelSelect" onchange="setModel(this.value)" style="font-family:inherit;font-size:10px;background:transparent;color:var(--text-dim);border:none;cursor:pointer;outline:none"><option value="gemini-2.5-flash">Gemini 2.5 Flash</option><option value="gemini-2.5-pro">Gemini 2.5 Pro</option></select>)</span>
+        Chat <span style="font-weight:400;font-size:10px;color:var(--text-dim);margin-left:4px">(<select id="modelSelect" onchange="setModel(this.value)" style="font-family:inherit;font-size:10px;background:transparent;color:var(--text-dim);border:none;cursor:pointer;outline:none"></select>)</span>
         <button onclick="clearChat()" style="background:none;border:none;color:var(--text-dim);font-size:11px;cursor:pointer">Clear</button>
       </div>
       <div class="col-body" id="inputPanel">
@@ -810,16 +810,32 @@
 
     // ---- CHAT ----
     let chatHistory = [];
-    let chatModel = localStorage.getItem('chatModel') || 'gemini-2.5-flash';
+    let chatModel = localStorage.getItem('chatModel') || '';
+    let availableModels = [];
 
     function setModel(model) {
       chatModel = model;
       localStorage.setItem('chatModel', model);
     }
 
-    function initModelSelect() {
+    async function initModelSelect() {
+      try {
+        const res = await fetch('/api/models');
+        availableModels = await res.json();
+      } catch { availableModels = []; }
       const select = document.getElementById('modelSelect');
-      if (select) select.value = chatModel;
+      if (!select) return;
+      select.innerHTML = availableModels.length === 0
+        ? '<option value="">No models available</option>'
+        : availableModels.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+      // Restore saved selection, or pick first available
+      if (chatModel && availableModels.some(m => m.id === chatModel)) {
+        select.value = chatModel;
+      } else if (availableModels.length > 0) {
+        chatModel = availableModels[0].id;
+        select.value = chatModel;
+        localStorage.setItem('chatModel', chatModel);
+      }
     }
 
     function appendChatMsg(role, text) {
@@ -1064,18 +1080,29 @@
           typing.classList.add('error');
         } else {
           typing.textContent = result.reply;
+          const modelMeta = availableModels.find(m => m.id === chatModel);
+          const isLocal = modelMeta?.provider === 'ollama';
           if (result.tokens) {
             // Pricing per 1M tokens (USD)
             const pricing = {
               'gemini-2.5-flash': { input: 0.15, output: 0.60 },
               'gemini-2.5-pro':   { input: 1.25, output: 10.00 },
             };
-            const rates = pricing[chatModel] || pricing['gemini-2.5-flash'];
-            const cost = (result.tokens.prompt * rates.input + result.tokens.reply * rates.output) / 1_000_000;
-            const costStr = cost < 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toFixed(3)}`;
+            const rates = pricing[chatModel];
             const info = document.createElement('div');
             info.style.cssText = 'font-size:10px;color:var(--text-dim);margin-top:4px';
-            info.textContent = `${result.tokens.prompt} in · ${result.tokens.reply} out · ${costStr}`;
+            if (rates) {
+              const cost = (result.tokens.prompt * rates.input + result.tokens.reply * rates.output) / 1_000_000;
+              const costStr = cost < 0.01 ? `$${cost.toFixed(4)}` : `$${cost.toFixed(3)}`;
+              info.textContent = `${result.tokens.prompt} in · ${result.tokens.reply} out · ${costStr}`;
+            } else {
+              info.textContent = `${result.tokens.prompt} in · ${result.tokens.reply} out`;
+            }
+            typing.appendChild(info);
+          } else if (isLocal) {
+            const info = document.createElement('div');
+            info.style.cssText = 'font-size:10px;color:var(--text-dim);margin-top:4px';
+            info.textContent = 'local model · free';
             typing.appendChild(info);
           }
           chatHistory.push({ role: 'user', text: msg });

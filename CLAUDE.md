@@ -4,14 +4,15 @@
 Personal task/project planner: Node.js + Express backend, vanilla HTML/CSS/JS single-page frontend. Markdown file (`data/tasks.md`) is the single source of truth. AI chat powered by Gemini. Supports multiple profiles (e.g. Personal / Demo).
 
 ## Architecture
-- `server.js` — Express server on port 3001. Parses/builds markdown, serves API, proxies Gemini chat, manages profiles.
+- `server.js` — Express server on port 3001. Parses/builds markdown, serves API, proxies AI chat (Gemini API or local Gemma via Ollama), manages profiles.
 - `public/index.html` — Entire frontend in one file. No build step, no framework.
 - `data/tasks.md` — Active task file (4 sections: Do Now, Do Later, My Projects, Done). Created from template on first run.
 - `data/tasks.template.md` — Starter template for new users.
 - `data/tasks.demo.md` — Demo profile data (committed).
 - `data/tasks.personal.md` — Personal profile data (gitignored).
 - `data/chat.json` — Persisted chat history (gitignored).
-- `.env` — GEMINI_API_KEY (gitignored).
+- `~/Documents/Models/` — Shared model directory (Whisper `ggml-base.bin`, etc.).
+- `.env` — GEMINI_API_KEY (gitignored, optional if using Gemma).
 
 ## Key conventions
 - **Color system**: Tasks get colors from projects via `fields.tags` matching. Never set `fields.color` on tasks — only on projects.
