@@ -343,18 +343,6 @@
     .task-meta span { font-size: 11px; color: var(--text-dim); }
     .task-meta .deadline-warn { color: var(--danger); font-weight: 600; }
 
-    .task-steps { margin-top: 6px; padding-left: 2px; }
-    .task-steps .progress-label {
-      font-size: 10px; color: var(--text-dim); font-weight: 500; margin-bottom: 2px;
-    }
-
-    .step {
-      display: flex; align-items: center; gap: 6px;
-      padding: 2px 0; font-size: 12px; color: var(--text-muted);
-    }
-    .step input[type="checkbox"] { width: 14px; height: 14px; accent-color: var(--accent); }
-    .step.is-done span { text-decoration: line-through; color: var(--text-dim); }
-
     .task-actions {
       display: flex; gap: 4px; opacity: 0;
       transition: opacity 0.15s; flex-shrink: 0; margin-top: 2px;
@@ -1303,7 +1291,7 @@
       const tags = activeFilter || '';
       const fields = tags ? { tags } : {};
       data[section] = data[section] || [];
-      data[section].push({ done: false, title, fields, steps: [] });
+      data[section].push({ done: false, title, fields });
       input.value = '';
       await save(); renderAll();
       showToast(`Added`);
@@ -1395,15 +1383,11 @@
           dragState = null;
         });
 
-        const doneCount = (proj.steps || []).filter(s => s.done).length;
-        const totalSteps = (proj.steps || []).length;
-        const progressText = totalSteps > 0 ? `${doneCount}/${totalSteps}` : '';
 
         div.innerHTML = `
           <div class="section-header" style="border-left: 3px solid ${color};">
             <h2>
-              <span class="proj-editable" data-action="edit-project" data-index="${i}" data-field="title">${esc(proj.title)}</span> ${proj.fields?.notes ? `<span class="proj-editable proj-notes-inline" data-action="edit-project" data-index="${i}" data-field="notes" style="font-weight:400;font-size:11px;color:var(--text-dim);margin-left:4px">— ${esc(proj.fields.notes)}</span>` : `<span class="proj-editable proj-notes-inline" data-action="edit-project" data-index="${i}" data-field="notes" style="font-weight:400;font-size:11px;color:var(--text-dim);margin-left:4px;opacity:0.4">+ note</span>`} <span class="count">${progressText}</span>
-            </h2>
+              <span class="proj-editable" data-action="edit-project" data-index="${i}" data-field="title">${esc(proj.title)}</span> ${proj.fields?.notes ? `<span class="proj-editable proj-notes-inline" data-action="edit-project" data-index="${i}" data-field="notes" style="font-weight:400;font-size:11px;color:var(--text-dim);margin-left:4px">— ${esc(proj.fields.notes)}</span>` : `<span class="proj-editable proj-notes-inline" data-action="edit-project" data-index="${i}" data-field="notes" style="font-weight:400;font-size:11px;color:var(--text-dim);margin-left:4px;opacity:0.4">+ note</span>`}            </h2>
             <div class="project-header-actions">
               <button class="project-color-btn" style="background:${color}" data-action="toggle-color-picker" data-index="${i}" title="Change color"></button>
               <button class="project-delete" data-action="delete-task" data-section="projects" data-index="${i}">×</button>
@@ -1413,13 +1397,6 @@
             ${COLOR_PALETTE.map(c => `<button class="color-swatch ${c === color ? 'active' : ''}" style="background:${c}" data-action="pick-color" data-index="${i}" data-color="${c}"></button>`).join('')}
           </div>
           <div class="section-body">
-            ${(proj.steps || []).map((s, si) => `
-              <div class="step ${s.done ? 'is-done' : ''}" style="padding:4px 14px;">
-                <input type="checkbox" ${s.done ? 'checked' : ''}
-                       data-action="toggle-step" data-section="projects" data-index="${i}" data-step="${si}">
-                <span>${esc(s.text)}</span>
-              </div>
-            `).join('')}
           </div>
         `;
         container.appendChild(div);
@@ -1449,19 +1426,6 @@
       if (dl) metaHtml += `<span class="${dl.cls}">${dl.label}</span>`;
       if (notes) metaHtml += `<span>${esc(notes)}</span>`;
 
-      let stepsHtml = '';
-      if (task.steps && task.steps.length > 0) {
-        const doneCount = task.steps.filter(s => s.done).length;
-        stepsHtml = `<div class="task-steps">
-          <div class="progress-label">${doneCount}/${task.steps.length} steps</div>
-          ${task.steps.map((s, si) => `
-          <div class="step ${s.done ? 'is-done' : ''}">
-            <input type="checkbox" ${s.done ? 'checked' : ''}
-                   data-action="toggle-step" data-section="${sectionKey}" data-index="${index}" data-step="${si}">
-            <span>${esc(s.text)}</span>
-          </div>`).join('')}</div>`;
-      }
-
       return `
         <div class="task ${doneClass}" draggable="true"
              data-section="${sectionKey}" data-index="${index}">
@@ -1473,7 +1437,7 @@
             <div class="task-content">
               <div class="task-title" data-action="edit-title" data-section="${sectionKey}" data-index="${index}">${esc(task.title)}</div>
               ${metaHtml ? `<div class="task-meta">${metaHtml}</div>` : ''}
-              ${stepsHtml}
+
             </div>
             <div class="task-actions">
               <button class="task-tag-btn" style="background:${taskColors.length ? taskColors[0].color : 'transparent'}" data-action="toggle-tags" data-section="${sectionKey}" data-index="${index}" title="Set project"></button>
@@ -1516,10 +1480,6 @@
       await save(); renderAll();
     }
 
-    async function toggleStep(section, taskIdx, stepIdx) {
-      data[section][taskIdx].steps[stepIdx].done = !data[section][taskIdx].steps[stepIdx].done;
-      await save(); renderAll();
-    }
 
     async function deleteTask(section, index) {
       if (section === 'projects') {
@@ -1658,7 +1618,6 @@
       const section = el.dataset.section;
       const index = Number(el.dataset.index);
       if (action === 'toggle-task') toggleTask(section, index);
-      if (action === 'toggle-step') toggleStep(section, index, Number(el.dataset.step));
     });
 
     document.addEventListener('keydown', (e) => {

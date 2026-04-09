@@ -184,7 +184,7 @@ const CHAT_SYSTEM = `You are a task management assistant for a personal planner 
 
 ## Data structure
 Tasks are stored in 4 sections: "now" (do now), "later" (do later), "projects", and "done".
-Each task object: { title: string, done: bool, fields: { tags, notes, deadline, color }, steps: [{ text, done }] }
+Each task object: { title: string, done: bool, fields: { tags, notes, deadline, color } }
 
 ## Color system (IMPORTANT)
 Tasks get their color from PROJECTS. Each project in the "projects" section has a color (in fields.color or auto-assigned).
@@ -206,7 +206,7 @@ If the user is just chatting or asking a question (not modifying tasks), respond
 - When adding a task and the user mentions or implies a project, set fields.tags to the right project hashtag(s)
 - When moving a task, remove from source section and add to target
 - When reordering, change the array order
-- Always preserve ALL existing fields, steps, and metadata on tasks you don't modify
+- Always preserve ALL existing fields and metadata on tasks you don't modify
 - Keep your text response brief — just confirm what you did
 - Be friendly and concise`;
 
@@ -329,42 +329,17 @@ function parseTasksMd(md) {
         done: taskMatch[1] === 'x',
         title: taskMatch[2],
         fields: {},
-        steps: [],
       };
       // Parse indented lines that follow
       let j = i + 1;
-      let inSteps = false;
       while (j < lines.length) {
         const sub = lines[j];
         if (!sub.startsWith('  ')) break;
         const trimmed = sub.trim();
 
-        if (trimmed.startsWith('Steps:') || trimmed === 'Steps:') {
-          inSteps = true;
-          j++;
-          continue;
-        }
-
-        if (inSteps) {
-          const stepMatch = trimmed.match(/^\d+\.\s+(.+)$/);
-          if (stepMatch) {
-            // Check if step is marked done with ~~strikethrough~~
-            const stepText = stepMatch[1];
-            const strikeMatch = stepText.match(/^~~(.+)~~$/);
-            task.steps.push({
-              text: strikeMatch ? strikeMatch[1] : stepText,
-              done: !!strikeMatch,
-            });
-          } else {
-            inSteps = false;
-          }
-        }
-
-        if (!inSteps) {
-          const fieldMatch = trimmed.match(/^- (.+?):\s*(.*)$/);
-          if (fieldMatch) {
-            task.fields[fieldMatch[1].toLowerCase()] = fieldMatch[2];
-          }
+        const fieldMatch = trimmed.match(/^- (.+?):\s*(.*)$/);
+        if (fieldMatch) {
+          task.fields[fieldMatch[1].toLowerCase()] = fieldMatch[2];
         }
         j++;
       }
@@ -398,13 +373,6 @@ function buildTasksMd(data) {
       }
       if (t.done && !fields.done) {
         md += `  - Done: ${new Date().toISOString().slice(0, 10)}\n`;
-      }
-      if (t.steps && t.steps.length > 0) {
-        md += `  - Steps:\n`;
-        t.steps.forEach((step, idx) => {
-          const text = step.done ? `~~${step.text}~~` : step.text;
-          md += `    ${idx + 1}. ${text}\n`;
-        });
       }
     }
   }
